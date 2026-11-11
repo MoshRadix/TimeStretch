@@ -36,7 +36,7 @@ function App() {
   }, []);
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><AudioLines /></div><div><b>MTO</b><small>TIME STRETCH</small></div></div>
+      <div className="brand"><div className="brand-mark"><AudioLines /></div><div><b>M<span className="brand-zero">0</span>SH</b><small>TIME STRETCH</small></div></div>
       <div className="section-label">YOUR STUDIO</div>
       <div className="control-stack"><div className="section-label">PLAYER CONTROLS</div>
         <ControlCard id="speed-slider" type="speed" title="Playback speed" value={`${speed.toFixed(2)}×`} min={.5} max={2} step={.01} labels={['0.5×', '2×']} onReset={() => window.mtoPlayer?.setSpeed(1)} />
@@ -46,7 +46,7 @@ function App() {
       <Separator className="sidebar-separator" />
       <div className="section-label">RECENT SESSION</div>
       <div className="recent-track" id="recent-track"><span className="recent-icon"><Music2 /></span><div className="recent-meta"><b id="recent-title">Nothing playing</b><small id="recent-subtitle">Open a track to begin</small></div><span className="playing-bars"><i /><i /><i /></span></div>
-      <div className="sidebar-bottom"><Button id="open-settings" variant="ghost" className="settings-link"><Settings2 /> Settings <kbd>Alt + ,</kbd></Button><div className="version">MTO PLAYER <span>·</span> 1.0.0 <span>·</span> Developed by <b>M0SH</b></div></div>
+      <div className="sidebar-bottom"><Button id="open-settings" variant="ghost" className="settings-link"><Settings2 /> Settings <kbd>Alt + ,</kbd></Button><div className="version">M<span className="brand-zero">0</span>SH PLAYER <span>·</span> 1.0.0 <span>·</span> Developed by <b>M<span className="brand-zero">0</span>SH</b></div></div>
     </aside>
     <main className="main-content">
       <header className="topbar"><div className="breadcrumb">Studio <span>/</span> <strong>Transcription</strong></div><div className="top-actions"><Badge id="app-status" variant="outline" className="status-pill"><i /> <span>Ready to listen</span></Badge><Button id="top-settings" variant="ghost" size="icon" aria-label="Settings"><Settings2 /></Button><div className="avatar">M</div></div></header>
@@ -63,7 +63,7 @@ function App() {
         <div className="keyboard-hint"><Keyboard /> <span>Space play / pause</span><kbd>←</kbd><kbd>→</kbd><span>seek</span><Button id="keyboard-help" variant="link" size="sm" onClick={() => window.dispatchEvent(new Event('mto:settings-open'))}><CircleHelp /> Keyboard shortcuts</Button></div>
       </section>
     </main>
-    <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent className="settings-modal"><DialogHeader><DialogTitle>Your shortcuts</DialogTitle><DialogDescription>Set global keys that work even when MTO is in the background.</DialogDescription></DialogHeader><div className="shortcut-list"><label>Play / pause <Input data-shortcut="playPause" defaultValue="Alt+Space" readOnly /></label><label>Seek backward <Input data-shortcut="seekBackward" defaultValue="Alt+Left" readOnly /></label><label>Seek forward <Input data-shortcut="seekForward" defaultValue="Alt+Right" readOnly /></label><label>Speed down <Input data-shortcut="speedDown" defaultValue="Alt+Down" readOnly /></label><label>Speed up <Input data-shortcut="speedUp" defaultValue="Alt+Up" readOnly /></label><label>Pitch down <Input data-shortcut="pitchDown" defaultValue="Ctrl+Alt+Left" readOnly /></label><label>Pitch up <Input data-shortcut="pitchUp" defaultValue="Ctrl+Alt+Right" readOnly /></label></div><div className="modal-footer"><span id="shortcut-message">Click a shortcut, then press your keys</span><Button id="save-settings">Save shortcuts</Button></div></DialogContent></Dialog>
+    <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent className="settings-modal"><DialogHeader><DialogTitle>Your shortcuts</DialogTitle><DialogDescription>Set global keys that work even when M0SH is in the background.</DialogDescription></DialogHeader><div className="shortcut-list"><label>Play / pause <Input data-shortcut="playPause" defaultValue="Alt+Space" readOnly /></label><label>Seek backward <Input data-shortcut="seekBackward" defaultValue="Alt+Left" readOnly /></label><label>Seek forward <Input data-shortcut="seekForward" defaultValue="Alt+Right" readOnly /></label><label>Speed down <Input data-shortcut="speedDown" defaultValue="Alt+Down" readOnly /></label><label>Speed up <Input data-shortcut="speedUp" defaultValue="Alt+Up" readOnly /></label><label>Pitch down <Input data-shortcut="pitchDown" defaultValue="Ctrl+Alt+Left" readOnly /></label><label>Pitch up <Input data-shortcut="pitchUp" defaultValue="Ctrl+Alt+Right" readOnly /></label></div><div className="modal-footer"><span id="shortcut-message">Click a shortcut, then press your keys</span><Button id="save-settings">Save shortcuts</Button></div></DialogContent></Dialog>
     <Toaster position="bottom-center" />
   </div>;
 }

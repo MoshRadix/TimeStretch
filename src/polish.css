@@ -367,10 +367,57 @@ textarea:focus-visible {
   color: #e2dcea;
 }
 
+.player-taskbar .live-audio-meter {
+  position: relative;
+  flex: 0 0 58px;
+  width: 58px;
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(195, 174, 214, .2);
+  border-radius: 999px;
+  background: #181820;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .35);
+}
+
+.player-taskbar .live-audio-meter span {
+  display: block;
+  width: var(--meter-level, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #76d9bb 0%, #d9db80 72%, #e88d8f 100%);
+  transition: width 70ms linear;
+}
+
+@media (max-width: 760px) {
+  .player-taskbar .live-audio-meter { display: none; }
+}
+
 .wave-bookmark-row {
   min-height: 30px;
   margin-top: 8px;
 }
+
+.wave-time-hint {
+  position: absolute;
+  z-index: 6;
+  top: 6px;
+  left: 0;
+  padding: 4px 6px;
+  border: 1px solid rgba(142, 221, 190, .26);
+  border-radius: 5px;
+  background: rgba(13, 21, 21, .94);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .28);
+  color: #c7f3df;
+  font: 9px 'DM Mono', monospace;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 90ms ease;
+  white-space: nowrap;
+}
+
+.wave-time-hint.visible { opacity: 1; }
 
 .bookmark-add {
   padding: 6px 10px;
@@ -541,7 +588,7 @@ textarea:focus-visible {
 }
 
 .about-app-card strong,
-.about-app-card span {
+.about-app-card span:not(.brand-zero) {
   display: block;
 }
 
@@ -550,16 +597,52 @@ textarea:focus-visible {
   font: 600 14px Manrope, sans-serif;
 }
 
-.about-app-card div > span {
+.about-app-card div > span:not(.brand-zero) {
   margin-top: 5px;
   color: #a49cb1;
   font: 10px 'DM Mono', monospace;
 }
 
 .about-description {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   line-height: 1.65;
 }
+
+.about-update-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  margin-bottom: 18px;
+}
+
+.about-update-row > span {
+  color: #a49cb1;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.about-update-button {
+  flex: none;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(192, 132, 252, .3);
+  border-radius: 7px;
+  background: rgba(192, 132, 252, .1);
+  color: #e0c8fa;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+}
+
+.about-update-button:hover:not(:disabled) {
+  border-color: rgba(192, 132, 252, .58);
+  background: rgba(192, 132, 252, .18);
+  color: #f5eaff;
+}
+
+.about-update-button:disabled { cursor: wait; opacity: .58; }
 
 .about-divider {
   height: 1px;

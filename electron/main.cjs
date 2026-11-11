@@ -1,10 +1,13 @@
 const { app, BrowserWindow, dialog, globalShortcut, ipcMain, protocol, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { randomUUID } = require('node:crypto');
+const { execFile } = require('node:child_process');
+const { promisify } = require('node:util');
 const fs = require('node:fs/promises');
 const { createReadStream } = require('node:fs');
 const { Readable } = require('node:stream');
 const path = require('node:path');
+const execFileAsync = promisify(execFile);
 
 let mainWindow;
 let lastAudioPath = null;
@@ -16,6 +19,7 @@ let updateDownloaded = false;
 let installingUpdate = false;
 let updateState = { status: 'idle' };
 let updateChecksStarted = false;
+let updateCheckPromise = null;
 const defaults = { playPause: 'Alt+Space', seekBackward: 'Alt+Left', seekForward: 'Alt+Right', speedDown: 'Alt+Down', speedUp: 'Alt+Up', pitchDown: 'Ctrl+Alt+Left', pitchUp: 'Ctrl+Alt+Right' };
 let shortcuts = { ...defaults };
 
@@ -68,6 +72,18 @@ function installUpdateWhenIdle() {
   setUpdateState('installing');
   autoUpdater.quitAndInstall(true, true);
 }
+function checkForUpdates() {
+  if (!app.isPackaged || updateDownloaded) return Promise.resolve(updateState);
+  if (updateCheckPromise) return updateCheckPromise;
+  updateCheckPromise = autoUpdater.checkForUpdates()
+    .catch((error) => {
+      console.error('Could not check for application updates:', error);
+      setUpdateState('error');
+      throw error;
+    })
+    .finally(() => { updateCheckPromise = null; });
+  return updateCheckPromise;
+}
 function initializeAutoUpdates() {
   if (!app.isPackaged || updateChecksStarted) return;
   updateChecksStarted = true;
@@ -76,7 +92,7 @@ function initializeAutoUpdates() {
   autoUpdater.allowPrerelease = false;
   autoUpdater.on('checking-for-update', () => setUpdateState('checking'));
   autoUpdater.on('update-available', (info) => setUpdateState('downloading', { version: info.version, percent: 0 }));
-  autoUpdater.on('update-not-available', () => setUpdateState('idle'));
+  autoUpdater.on('update-not-available', (info) => setUpdateState('up-to-date', { version: info.version }));
   autoUpdater.on('download-progress', (progress) => setUpdateState('downloading', { percent: Math.floor(progress.percent) }));
   autoUpdater.on('update-downloaded', (info) => {
     updateDownloaded = true;
@@ -87,16 +103,12 @@ function initializeAutoUpdates() {
     console.error('Could not update the application:', error);
     setUpdateState('error');
   });
-  const checkForUpdates = () => autoUpdater.checkForUpdates().catch((error) => {
-    console.error('Could not check for application updates:', error);
-    setUpdateState('error');
-  });
-  checkForUpdates();
-  const updateCheckTimer = setInterval(checkForUpdates, 4 * 60 * 60 * 1000);
+  checkForUpdates().catch(() => {});
+  const updateCheckTimer = setInterval(() => checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000);
   updateCheckTimer.unref();
 }
 function createWindow() {
-  mainWindow = new BrowserWindow({ width: 1440, height: 980, minWidth: 1040, minHeight: 720, backgroundColor: '#0c1014', title: 'MTO TimeStretch', icon: path.join(__dirname, app.isPackaged ? '../web-dist/mto-icon.png' : '../public/mto-icon.png'), autoHideMenuBar: true,
+  mainWindow = new BrowserWindow({ width: 1440, height: 980, minWidth: 1040, minHeight: 720, backgroundColor: '#0c1014', title: 'M0SH TimeStretch', icon: path.join(__dirname, app.isPackaged ? '../web-dist/mto-icon.png' : '../public/mto-icon.png'), autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
     autoplayPolicy: 'no-user-gesture-required' });
   if (!app.isPackaged) mainWindow.loadURL('http://127.0.0.1:5173');
@@ -130,6 +142,43 @@ ipcMain.handle('audio:read-chunk', async (_event, { filePath, offset, length }) 
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + bytesRead);
   } finally { await handle.close(); }
 });
+ipcMain.handle('waveform:generate', async (_event, { filePath, duration }) => {
+  if (process.platform !== 'win32' || filePath !== lastAudioPath || !Number.isFinite(duration) || duration <= 0) return null;
+  const generatorPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'audiowaveform', 'audiowaveform.exe')
+    : path.join(app.getAppPath(), 'resources', 'audiowaveform.exe');
+  const outputPath = path.join(app.getPath('temp'), `mto-waveform-${randomUUID()}.json`);
+  try {
+    await fs.access(generatorPath);
+    const pixelsPerSecond = Math.min(1024, Math.max(1, Math.ceil(2048 / duration)));
+    await execFileAsync(generatorPath, [
+      '--quiet', '--input-filename', filePath,
+      '--output-filename', outputPath, '--output-format', 'json',
+      '--pixels-per-second', String(pixelsPerSecond), '--bits', '16',
+    ], { windowsHide: true, timeout: 180_000, maxBuffer: 1024 * 1024 });
+    const waveform = JSON.parse(await fs.readFile(outputPath, 'utf8'));
+    if (!Array.isArray(waveform.data) || !Number.isInteger(waveform.length) || waveform.length < 1 || waveform.data.length < waveform.length * 2) return null;
+    const peaks = new Float32Array(512);
+    const bits = Number(waveform.bits);
+    if (bits !== 8 && bits !== 16) return null;
+    const sampleScale = 2 ** (bits - 1);
+    for (let i = 0; i < waveform.length; i++) {
+      const min = Number(waveform.data[i * 2]);
+      const max = Number(waveform.data[i * 2 + 1]);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) continue;
+      const peak = Math.min(1, Math.max(Math.abs(min), Math.abs(max)) / sampleScale);
+      const firstBin = Math.floor(i * peaks.length / waveform.length);
+      const lastBin = Math.min(peaks.length - 1, Math.ceil((i + 1) * peaks.length / waveform.length) - 1);
+      for (let bin = firstBin; bin <= lastBin; bin++) peaks[bin] = Math.max(peaks[bin], peak);
+    }
+    return Array.from(peaks);
+  } catch (error) {
+    console.warn('audiowaveform could not generate a waveform:', error.message);
+    return null;
+  } finally {
+    await fs.rm(outputPath, { force: true }).catch(() => {});
+  }
+});
 ipcMain.on('playback:position', (_event, position) => { savePlaybackState(position); });
 ipcMain.handle('settings:get', async () => { await loadSettings(); return shortcuts; });
 ipcMain.handle('settings:save', async (_event, value) => {
@@ -146,6 +195,14 @@ ipcMain.on('playback:active', (_event, active) => {
 ipcMain.handle('app:get-version', () => app.getVersion());
 ipcMain.handle('app:open-developer-profile', () => shell.openExternal('https://github.com/MoshRadix'));
 ipcMain.handle('updates:get-state', () => updateState);
+ipcMain.handle('updates:check', async () => {
+  if (!app.isPackaged) {
+    setUpdateState('unavailable');
+    return updateState;
+  }
+  await checkForUpdates();
+  return updateState;
+});
 app.whenReady().then(async () => {
   protocol.handle('mto-audio', async (request) => {
     try {

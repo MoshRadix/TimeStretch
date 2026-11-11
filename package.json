@@ -1,6 +1,6 @@
 {
-  "name": "mto-timestretch-player",
-  "version": "1.0.4",
+  "name": "m0sh-timestretch-player",
+  "version": "1.0.0",
   "description": "A focused desktop player for slowing down, tuning, and studying audio.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -21,10 +21,16 @@
     "wait-on": "^8.0.4"
   },
   "build": {
-    "appId": "com.mto.timestretch",
-    "productName": "MTO TimeStretch",
+    "appId": "com.m0sh.timestretch",
+    "productName": "M0SH TimeStretch",
     "directories": { "output": "release" },
     "files": ["web-dist/**/*", "electron/**/*.cjs", "package.json", "!**/*.map", "!**/*.md", "!**/node_modules/.cache{,/**/*}"],
+    "extraResources": [
+      { "from": "resources/audiowaveform.exe", "to": "audiowaveform/audiowaveform.exe" },
+      { "from": "resources/audiowaveform-COPYING", "to": "audiowaveform/COPYING" },
+      { "from": "resources/audiowaveform-source-1.10.2.zip", "to": "audiowaveform/source-1.10.2.zip" },
+      { "from": "resources/AUDIOWAVEFORM-NOTICE.md", "to": "audiowaveform/NOTICE.md" }
+    ],
     "asar": true,
     "compression": "maximum",
     "removePackageScripts": true,
@@ -35,7 +41,7 @@
     "publish": {
       "provider": "github",
       "owner": "MoshRadix",
-      "repo": "MTO-TimeStretch-Player",
+      "repo": "TimeStretch",
       "releaseType": "release"
     }
   },

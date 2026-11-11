@@ -9,7 +9,7 @@ const $ = (selector) => document.querySelector(selector);
 const effectsStorageKey = 'mto-audio-settings:';
 let legacyEffects = {};
 try { legacyEffects = JSON.parse(localStorage.getItem('mto-audio-effects') || '{}') || {}; } catch {}
-const state = { buffer: null, waveformPeaks: null, waveformAnalysis: null, waveformCacheWrite: Promise.resolve(), bookmarks: [], audioPath: '', name: '', context: null, audioSetup: null, loading: false, loadId: 0, restoring: false, source: null, media: $('#audio-stream'), mediaSource: null, streaming: false, stretch: null, clarityNodes: null, clarity: false, noiseReduction: false, equalizer: false, eqValues: { low: 0, mid: 0, high: 0 }, noiseGateFrame: 0, noiseGateSamples: null, playing: false, loop: false, offset: 0, startedAt: 0, speed: 1, pitch: 0, volume: 0.8, shortcuts: {} };
+const state = { buffer: null, waveformPeaks: null, waveformAnalysis: null, waveformCacheWrite: Promise.resolve(), bookmarks: [], audioPath: '', name: '', context: null, audioSetup: null, loading: false, loadId: 0, restoring: false, source: null, media: $('#audio-stream'), mediaSource: null, streaming: false, stretch: null, clarityNodes: null, clarity: false, noiseReduction: false, equalizer: false, eqValues: { low: 0, mid: 0, high: 0 }, noiseGateFrame: 0, noiseGateSamples: null, meterFrame: 0, meterSamples: null, playing: false, loop: false, offset: 0, startedAt: 0, speed: 1, pitch: 0, volume: 0.8, shortcuts: {} };
 const waveform = $('#waveform');
 const waveCtx = waveform.getContext('2d');
 const waveformProgress = $('#waveform-progress');
@@ -497,6 +497,31 @@ function monitorNoiseGate() {
   nodes.noiseGate.gain.setTargetAtTime(attenuation, state.context.currentTime, 0.035);
   state.noiseGateFrame = requestAnimationFrame(monitorNoiseGate);
 }
+function monitorAudioLevel() {
+  const analyser = state.clarityNodes?.meterAnalyser;
+  const meter = $('#live-audio-meter');
+  if (!state.playing || !analyser || !state.meterSamples || !meter) { state.meterFrame = 0; return; }
+  analyser.getFloatTimeDomainData(state.meterSamples);
+  let energy = 0;
+  let peak = 0;
+  for (const sample of state.meterSamples) {
+    energy += sample * sample;
+    peak = Math.max(peak, Math.abs(sample));
+  }
+  const rms = Math.sqrt(energy / state.meterSamples.length);
+  const toDbfs = (amplitude) => amplitude > 0 ? 20 * Math.log10(amplitude) : -Infinity;
+  const rmsDb = toDbfs(rms);
+  const peakDb = toDbfs(peak);
+  // The bar is calibrated to a 60 dB display range: silence/very quiet at 0%,
+  // digital full scale at 100%. Keep the underlying meter value in dBFS.
+  const displayedDb = Math.max(-60, Math.min(0, rmsDb));
+  const level = ((displayedDb + 60) / 60) * 100;
+  meter.style.setProperty('--meter-level', `${level}%`);
+  meter.setAttribute('aria-valuenow', String(Number.isFinite(displayedDb) ? Math.round(displayedDb * 10) / 10 : -60));
+  meter.setAttribute('aria-valuetext', `RMS ${Number.isFinite(rmsDb) ? rmsDb.toFixed(1) : '−∞'} dBFS, peak ${Number.isFinite(peakDb) ? peakDb.toFixed(1) : '−∞'} dBFS`);
+  meter.title = meter.getAttribute('aria-valuetext');
+  state.meterFrame = requestAnimationFrame(monitorAudioLevel);
+}
 function setEqValue(band, value) {
   const next = Math.max(-12, Math.min(12, Math.round(Number(value))));
   state.eqValues[band] = next;
@@ -521,6 +546,7 @@ function makeClarityChain(input = state.stretch || state.context.createGain()) {
   const presence = state.context.createBiquadFilter(); presence.type = 'peaking'; presence.frequency.value = 2800; presence.Q.value = 0.8; presence.gain.value = state.clarity ? 4.5 : 0;
   const compressor = state.context.createDynamicsCompressor(); compressor.threshold.value = -24; compressor.knee.value = 18; compressor.ratio.value = state.clarity ? 2.2 : 1; compressor.attack.value = 0.012; compressor.release.value = 0.22;
   const gain = state.context.createGain(); gain.gain.value = state.volume;
+  const meterAnalyser = state.context.createAnalyser(); meterAnalyser.fftSize = 256; meterAnalyser.smoothingTimeConstant = 0.72;
   const noiseHighpass = state.context.createBiquadFilter(); noiseHighpass.type = 'highpass'; noiseHighpass.frequency.value = state.noiseReduction ? 90 : 20;
   const noiseLowpass = state.context.createBiquadFilter(); noiseLowpass.type = 'lowpass'; noiseLowpass.frequency.value = state.noiseReduction ? 10000 : 20000;
   const noiseAnalyser = state.context.createAnalyser(); noiseAnalyser.fftSize = 512; noiseAnalyser.smoothingTimeConstant = 0.82;
@@ -529,9 +555,10 @@ function makeClarityChain(input = state.stretch || state.context.createGain()) {
   const eqMid = state.context.createBiquadFilter(); eqMid.type = 'peaking'; eqMid.frequency.value = 1100; eqMid.Q.value = 0.85; eqMid.gain.value = state.equalizer ? state.eqValues.mid : 0;
   const eqHigh = state.context.createBiquadFilter(); eqHigh.type = 'highshelf'; eqHigh.frequency.value = 4200; eqHigh.gain.value = state.equalizer ? state.eqValues.high : 0;
   state.noiseGateSamples = new Float32Array(noiseAnalyser.fftSize);
-  state.clarityNodes = { noiseHighpass, noiseLowpass, noiseAnalyser, noiseGate, eqLow, eqMid, eqHigh, highpass, presence, compressor, gain };
+  state.meterSamples = new Float32Array(meterAnalyser.fftSize);
+  state.clarityNodes = { noiseHighpass, noiseLowpass, noiseAnalyser, noiseGate, eqLow, eqMid, eqHigh, highpass, presence, compressor, gain, meterAnalyser };
   input.connect(noiseHighpass); noiseHighpass.connect(noiseLowpass); noiseLowpass.connect(noiseAnalyser); noiseAnalyser.connect(noiseGate);
-  noiseGate.connect(eqLow); eqLow.connect(eqMid); eqMid.connect(eqHigh); eqHigh.connect(highpass); highpass.connect(presence); presence.connect(compressor); compressor.connect(gain); gain.connect(state.context.destination);
+  noiseGate.connect(eqLow); eqLow.connect(eqMid); eqMid.connect(eqHigh); eqHigh.connect(highpass); highpass.connect(presence); presence.connect(compressor); compressor.connect(gain); gain.connect(meterAnalyser); meterAnalyser.connect(state.context.destination);
 }
 function updateClarity() {
   state.clarity = !state.clarity; const { highpass, presence, compressor } = state.clarityNodes || {};
@@ -558,7 +585,12 @@ async function ensureAudio(resumeContext = true) {
 }
 function stopSource() {
   if (state.noiseGateFrame) cancelAnimationFrame(state.noiseGateFrame);
+  if (state.meterFrame) cancelAnimationFrame(state.meterFrame);
   state.noiseGateFrame = 0;
+  state.meterFrame = 0;
+  state.meterSamples = null;
+  const meter = $('#live-audio-meter');
+  if (meter) { meter.style.setProperty('--meter-level', '0%'); meter.setAttribute('aria-valuenow', '-60'); meter.setAttribute('aria-valuetext', 'No active audio'); meter.title = 'No active audio'; }
   if (state.source) { try { state.source.onended = null; state.source.stop(); } catch {} try { state.source.disconnect(); } catch {} }
   if (state.mediaSource) { try { state.mediaSource.disconnect(); } catch {} }
   if (state.stretch) { try { state.stretch.disconnect(); } catch {} }
@@ -590,7 +622,7 @@ async function play(allowDuringLoad = false) {
   if (state.playing) return;
   await ensureAudio(); if (state.playing) return;
   if (state.offset >= audioDuration()) state.offset = 0;
-  try { createPlaybackGraph(); state.startedAt = state.context?.currentTime || 0; if (state.streaming) { state.media.currentTime = state.offset; state.media.onended = handleEnded; await state.media.play(); } else state.source.start(0, state.offset); state.playing = true; if (state.noiseReduction) monitorNoiseGate(); window.mto.setPlaybackActive(true); }
+  try { createPlaybackGraph(); state.startedAt = state.context?.currentTime || 0; if (state.streaming) { state.media.currentTime = state.offset; state.media.onended = handleEnded; await state.media.play(); } else state.source.start(0, state.offset); state.playing = true; monitorAudioLevel(); if (state.noiseReduction) monitorNoiseGate(); window.mto.setPlaybackActive(true); }
   catch (error) { state.playing = false; stopSource(); throw error; }
   $('#play-symbol').textContent = '\u2016'; $('#play-btn').classList.add('is-playing'); $('#play-btn').title = 'Pause'; $('#play-btn').setAttribute('aria-label', 'Pause'); $('#track-state-label').textContent = 'NOW PLAYING'; $('#track-state-dot').classList.add('playing'); drawProgress();
 }
@@ -636,12 +668,13 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
     renderBookmarks();
     updateLoadProgress('Preparing audio…', 0);
     pause(false); state.audioPath = file.path; loadAudioSettings(file.path); state.buffer = null; state.streaming = false; state.media.pause(); state.media.removeAttribute('src'); state.media.load();
+    let waveformReady = Boolean(cachedWaveform?.complete);
     if (isLargeFile) {
       updateLoadProgress('Opening large audio stream…', null);
       await new Promise((resolve, reject) => { const onReady = () => { cleanup(); resolve(); }; const onError = () => { cleanup(); reject(new Error('Audio stream could not be opened')); }; const cleanup = () => { state.media.removeEventListener('loadedmetadata', onReady); state.media.removeEventListener('error', onError); }; state.media.addEventListener('loadedmetadata', onReady, { once: true }); state.media.addEventListener('error', onError, { once: true }); state.media.crossOrigin = 'anonymous'; state.media.src = file.url; state.media.load(); });
       if (loadId !== state.loadId) return;
       state.streaming = true; state.media.volume = state.volume; state.media.muted = false; state.name = file.name; state.offset = Math.max(0, Math.min(audioDuration(), Number(restorePosition) || 0));
-      updateLoadProgress('Large audio ready', 100);
+      updateLoadProgress('Large audio ready', 70);
     } else {
       await ensureAudio(false);
       if (loadId !== state.loadId) return;
@@ -666,6 +699,22 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
       updateLoadProgress('Waveform ready', 100);
     }
     const duration = audioDuration();
+    if (isLargeFile && !waveformReady) {
+      updateLoadProgress('Generating waveform…', 82);
+      try {
+        const generated = await window.mto.generateWaveform(file.path, duration);
+        if (loadId !== state.loadId) return;
+        if (generated?.length === waveformPeakCount) {
+          state.waveformPeaks = Float32Array.from(generated);
+          await persistWaveform(waveformCacheIdentity(file), state.waveformPeaks, 1, true);
+          waveformReady = true;
+          drawWaveform();
+        }
+      } catch (error) {
+        console.warn('The fast waveform generator was unavailable; using the built-in analyzer.', error);
+      }
+    }
+    if (isLargeFile) updateLoadProgress('Audio ready', 100);
     state.audioPath = file.path;
     state.bookmarks = loadBookmarks(file.path, duration);
     loadTranscription(file.path);
@@ -674,7 +723,7 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
     $('#track-state-label').textContent = restoredFile ? 'PAUSED' : 'TRACK LOADED'; $('#track-state-dot').classList.remove('playing');
     $('#recent-title').textContent = $('#track-title').textContent; $('#recent-subtitle').textContent = `${formatTime(duration)} · Just added`; $('.status-pill span').textContent = 'TRACK LOADED'; $('.status-pill i').classList.add('ready');
     renderBookmarks(); drawWaveform(); drawProgress(); savePlaybackPosition(true);
-    if (isLargeFile && !cachedWaveform?.complete) analyzeStreamingWaveform(file.url, duration, loadId, file, cachedWaveform);
+    if (isLargeFile && !waveformReady) analyzeStreamingWaveform(file.url, duration, loadId, file, cachedWaveform);
     if (!isRestore) {
       try { await play(true); }
       catch (error) { console.error(error); toast('Audio loaded. Press Play to start playback.'); }
@@ -744,8 +793,21 @@ $('#equalizer-toggle').onclick = () => setEqualizer(!state.equalizer);
 for (const band of ['low', 'mid', 'high']) $(`#eq-${band}`).addEventListener('input', (event) => setEqValue(band, event.target.value));
 document.querySelectorAll('[data-reset]').forEach((button) => button.onclick = () => button.dataset.reset === 'speed' ? setSpeed(1) : setPitch(0));
 function wireWaveSeeking(hit, hover) {
+  const timeHint = document.createElement('div');
+  timeHint.className = 'wave-time-hint';
+  timeHint.setAttribute('aria-hidden', 'true');
+  hit.append(timeHint);
+  const updatePointerHint = (event, rect = hit.getBoundingClientRect()) => {
+    if (!hasAudio() || rect.width <= 0) { timeHint.classList.remove('visible'); return; }
+    const localX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+    const ratio = localX / rect.width;
+    timeHint.style.left = `${Math.max(30, Math.min(rect.width - 30, localX))}px`;
+    timeHint.textContent = formatTime(ratio * audioDuration());
+    timeHint.classList.add('visible');
+  };
   hit.addEventListener('pointerdown', (event) => { if (!hasAudio()) return; scrubbing = true; scrubWasPlaying = state.playing; if (scrubWasPlaying) pause(); hit.setPointerCapture(event.pointerId); const rect = hit.getBoundingClientRect(); state.offset = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * audioDuration(); if (state.streaming) state.media.currentTime = state.offset; drawWaveform(); drawProgress(); });
-  hit.addEventListener('pointermove', (event) => { const rect = hit.getBoundingClientRect(); const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)); hover.style.left = `${ratio * 100}%`; if (scrubbing && hasAudio()) { state.offset = ratio * audioDuration(); if (state.streaming) state.media.currentTime = state.offset; drawWaveform(); drawProgress(); } });
+  hit.addEventListener('pointermove', (event) => { const rect = hit.getBoundingClientRect(); const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)); hover.style.left = `${ratio * 100}%`; updatePointerHint(event, rect); if (scrubbing && hasAudio()) { state.offset = ratio * audioDuration(); if (state.streaming) state.media.currentTime = state.offset; drawWaveform(); drawProgress(); } });
+  hit.addEventListener('pointerleave', () => { if (!scrubbing) timeHint.classList.remove('visible'); });
   hit.addEventListener('pointerup', async () => { if (!scrubbing) return; scrubbing = false; savePlaybackPosition(true); if (scrubWasPlaying) await togglePlay(); scrubWasPlaying = false; });
   hit.addEventListener('pointercancel', () => { scrubbing = false; savePlaybackPosition(true); scrubWasPlaying = false; });
 }
@@ -767,15 +829,34 @@ document.addEventListener('keydown', (event) => {
 $('#save-settings').onclick = async () => { try { state.shortcuts = await window.mto.saveShortcuts(state.shortcuts); $('#shortcut-message').textContent = 'Shortcuts saved'; toast('Global shortcuts saved'); } catch { toast('Could not save shortcuts'); } };
 function showUpdateStatus(update, notify = false) {
   const label = $('.status-pill span');
+  const aboutStatus = $('#about-update-status');
+  const checkButton = $('#check-for-updates');
+  const isBusy = ['checking', 'downloading', 'downloaded', 'installing'].includes(update.status);
+  checkButton.disabled = isBusy || update.status === 'unavailable';
+  if (update.status === 'checking') aboutStatus.textContent = 'Checking for updates…';
+  else if (update.status === 'downloading') aboutStatus.textContent = `Downloading version ${update.version || 'update'} · ${update.percent ?? 0}%`;
+  else if (update.status === 'downloaded') aboutStatus.textContent = `Version ${update.version} is ready to install when playback stops.`;
+  else if (update.status === 'installing') aboutStatus.textContent = 'Installing update…';
+  else if (update.status === 'up-to-date') aboutStatus.textContent = 'You’re up to date.';
+  else if (update.status === 'unavailable') aboutStatus.textContent = 'Updates are available in the installed app.';
+  else if (update.status === 'error') aboutStatus.textContent = 'Could not check for updates. Try again later.';
+  else aboutStatus.textContent = 'Updates are checked automatically.';
   if (update.status === 'checking') label.textContent = 'CHECKING FOR UPDATES';
   else if (update.status === 'downloading') label.textContent = `DOWNLOADING UPDATE ${update.percent ?? 0}%`;
   else if (update.status === 'downloaded') {
     label.textContent = 'UPDATE READY · INSTALLS WHEN PAUSED';
     if (notify) toast(`Update ${update.version} downloaded. It will install when playback stops.`);
   } else if (update.status === 'installing') label.textContent = 'INSTALLING UPDATE';
+  else if (update.status === 'unavailable') label.textContent = 'UPDATES REQUIRE INSTALLED APP';
   else if (update.status === 'error') label.textContent = 'UPDATE CHECK FAILED';
   else label.textContent = state.playing ? 'NOW PLAYING' : hasAudio() ? 'TRACK LOADED' : 'READY TO LISTEN';
 }
+$('#check-for-updates').onclick = async () => {
+  $('#about-update-status').textContent = 'Checking for updates…';
+  $('#check-for-updates').disabled = true;
+  try { showUpdateStatus(await window.mto.checkForUpdates()); }
+  catch (error) { console.error('Could not check for updates:', error); showUpdateStatus({ status: 'error' }); }
+};
 window.mto.onUpdateStatus((update) => showUpdateStatus(update, true));
 window.mto.getUpdateState().then((update) => showUpdateStatus(update)).catch((error) => console.error('Could not load update status:', error));
 window.mto.getVersion().then((version) => { $('#about-version').textContent = version; }).catch((error) => console.error('Could not read application version:', error));
