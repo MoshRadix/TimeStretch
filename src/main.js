@@ -22,6 +22,9 @@ let progressFrame = 0;
 let lastPositionSavedAt = 0;
 const waveformPeakCount = 512;
 const transcriptionText = $('#transcription-text');
+function focusTranscriptionEditor() {
+  if (transcriptionText?.isConnected) transcriptionText.focus({ preventScroll: true });
+}
 const transcriptionFontSize = $('#transcription-font-size');
 let transcriptionLanguage = 'dv';
 const phoneticThaana = {
@@ -745,7 +748,7 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
       catch (error) { console.error(error); toast('Audio loaded. Press Play to start playback.'); }
     }
   } catch (error) { if (loadId === state.loadId) { console.error(error); toast('Could not open or play this audio file.'); } }
-  finally { if (loadId === state.loadId) { state.loading = false; state.restoring = false; finishLoadProgress(); } }
+  finally { if (loadId === state.loadId) { state.loading = false; state.restoring = false; finishLoadProgress(); focusTranscriptionEditor(); } }
 }
 async function restoreLastAudio() {
   if (!window.mto?.restoreAudio) return;
@@ -757,15 +760,55 @@ async function restoreLastAudio() {
 
 function keyCombo(event) { const bits = []; if (event.ctrlKey) bits.push('Ctrl'); if (event.altKey) bits.push('Alt'); if (event.shiftKey) bits.push('Shift'); if (event.metaKey) bits.push('Super'); let key = event.key; if (key === ' ') key = 'Space'; else if (key === 'ArrowUp') key = 'Up'; else if (key === 'ArrowDown') key = 'Down'; else if (key === 'ArrowLeft') key = 'Left'; else if (key === 'ArrowRight') key = 'Right'; else if (key.length === 1) key = key.toUpperCase(); if (!['Control', 'Alt', 'Shift', 'Meta'].includes(key)) bits.push(key); return bits.join('+'); }
 function showSettings() { $('#settings-overlay').classList.add('visible'); }
-function hideSettings() { $('#settings-overlay').classList.remove('visible'); recordingShortcut = null; }
+function hideSettings() { $('#settings-overlay').classList.remove('visible'); recordingShortcut = null; focusTranscriptionEditor(); }
 function showAbout() { $('#about-overlay').classList.add('visible'); $('#close-about').focus(); }
-function hideAbout() { $('#about-overlay').classList.remove('visible'); $('#open-about').focus(); }
+function hideAbout() { $('#about-overlay').classList.remove('visible'); focusTranscriptionEditor(); }
 async function loadSettings() {
   try { state.shortcuts = await window.mto?.getShortcuts?.() || { ...defaultShortcuts }; }
   catch (error) { console.error('Could not load keyboard shortcuts:', error); state.shortcuts = { ...defaultShortcuts }; }
   for (const input of document.querySelectorAll('[data-shortcut]')) input.value = state.shortcuts[input.dataset.shortcut] || '';
 }
-function doGlobalAction(action) { if (action === 'toggle-play') togglePlay(); else if (action === 'seek-backward') seekTo(currentTime() - 3); else if (action === 'seek-forward') seekTo(currentTime() + 3); else if (action === 'speed-down') setSpeed(state.speed - 0.05); else if (action === 'speed-up') setSpeed(state.speed + 0.05); else if (action === 'pitch-down') setPitch(state.pitch - 1); else if (action === 'pitch-up') setPitch(state.pitch + 1); }
+function doGlobalAction(action) {
+  if (action === 'toggle-play') return togglePlay();
+  if (action === 'seek-backward') return seekTo(currentTime() - 3);
+  if (action === 'seek-forward') return seekTo(currentTime() + 3);
+  if (action === 'speed-down') return setSpeed(state.speed - 0.05);
+  if (action === 'speed-up') return setSpeed(state.speed + 0.05);
+  if (action === 'pitch-down') return setPitch(state.pitch - 1);
+  if (action === 'pitch-up') return setPitch(state.pitch + 1);
+}
+function runShortcutAction(action) {
+  const appHadFocus = document.hasFocus();
+  const selection = document.activeElement === transcriptionText
+    ? { start: transcriptionText.selectionStart, end: transcriptionText.selectionEnd, direction: transcriptionText.selectionDirection }
+    : null;
+  const restoreEditorFocus = () => {
+    if (!appHadFocus || !transcriptionText.isConnected || $('#settings-overlay').classList.contains('visible') || $('#about-overlay').classList.contains('visible')) return;
+    focusTranscriptionEditor();
+    if (!selection) return;
+    const start = Math.min(selection.start, transcriptionText.value.length);
+    const end = Math.min(selection.end, transcriptionText.value.length);
+    transcriptionText.setSelectionRange(start, end, selection.direction);
+  };
+  try {
+    const result = doGlobalAction(action);
+    if (appHadFocus) Promise.resolve(result).then(restoreEditorFocus, (error) => {
+      restoreEditorFocus();
+      console.error('Keyboard shortcut action failed:', error);
+    });
+    return result;
+  } catch (error) {
+    restoreEditorFocus();
+    console.error('Keyboard shortcut action failed:', error);
+    return undefined;
+  }
+}
+
+// Restore the writing destination after workspace controls finish their action.
+document.addEventListener('click', () => {
+  if ($('#settings-overlay').classList.contains('visible') || $('#about-overlay').classList.contains('visible')) return;
+  setTimeout(focusTranscriptionEditor, 0);
+});
 
 const taskbar = $('#player-taskbar');
 const playerCard = $('.player-card');
@@ -847,7 +890,7 @@ document.addEventListener('keydown', (event) => {
   if (configuredShortcut) {
     const actions = { playPause: 'toggle-play', seekBackward: 'seek-backward', seekForward: 'seek-forward', speedDown: 'speed-down', speedUp: 'speed-up', pitchDown: 'pitch-down', pitchUp: 'pitch-up' };
     event.preventDefault();
-    doGlobalAction(actions[configuredShortcut[0]]);
+    runShortcutAction(actions[configuredShortcut[0]]);
     return;
   }
   if (event.key === 'Escape') { hideSettings(); hideAbout(); return; }
@@ -891,6 +934,7 @@ window.mto?.onUpdateStatus?.((update) => showUpdateStatus(update, true));
 if (window.mto?.getUpdateState) window.mto.getUpdateState().then((update) => showUpdateStatus(update)).catch((error) => { console.error('Could not load update status:', error); showUpdateStatus({ status: 'error' }); });
 else showUpdateStatus({ status: 'unavailable' });
 window.mto?.getVersion?.().then((version) => { $('#about-version').textContent = version; }).catch((error) => console.error('Could not read application version:', error));
-window.mto?.onGlobalAction?.(doGlobalAction);
+window.mto?.onGlobalAction?.(runShortcutAction);
 window.addEventListener('beforeunload', () => { saveAudioSettings(); savePlaybackPosition(true); });
 restoreLastAudio();
+focusTranscriptionEditor();

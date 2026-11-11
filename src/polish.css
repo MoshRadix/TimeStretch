@@ -533,17 +533,21 @@ textarea:focus-visible {
 }
 
 .transcription-text {
-  border: 1px solid #2d2b39;
+  border: 1px solid #76518f;
   border-radius: 10px;
   background: rgba(13, 13, 19, .56);
   color: #eeeaf4;
   line-height: 1.8;
-  transition: border-color .18s ease, box-shadow .18s ease;
+  box-shadow: 0 0 0 2px rgba(177, 113, 220, .22), 0 0 18px rgba(177, 113, 220, .08);
+  transition: none;
 }
 
 .transcription-text:focus {
   border-color: #76518f;
-  box-shadow: 0 0 0 3px rgba(177, 113, 220, .1);
+}
+
+.transcription-text:focus-visible {
+  outline: none;
 }
 
 .transcription-text::placeholder {
