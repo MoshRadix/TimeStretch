@@ -36,7 +36,10 @@ function main() {
   }
   if (localTagRef.status === 0) {
     const localTagCommit = runGit(['rev-parse', '--verify', `${tag}^{commit}`]).stdout.trim();
-    if (localTagCommit !== head) throw new Error(`Local tag ${tag} already points to a different commit.`);
+    if (localTagCommit !== head) {
+      runGit(['tag', '--force', '--annotate', tag, '--message', `Release ${version}`, head]);
+      console.log(`Recreated stale local tag ${tag} at ${head}; the matching remote tag is absent.`);
+    }
   } else {
     runGit(['tag', '-a', tag, '-m', `Release ${tag}`]);
   }
