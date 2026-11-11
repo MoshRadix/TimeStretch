@@ -6,7 +6,10 @@ import './style.css';
 import './polish.css';
 
 const $ = (selector) => document.querySelector(selector);
-const state = { buffer: null, waveformPeaks: null, waveformAnalysis: null, waveformCacheWrite: Promise.resolve(), bookmarks: [], audioPath: '', name: '', context: null, audioSetup: null, loading: false, loadId: 0, restoring: false, source: null, media: $('#audio-stream'), mediaSource: null, streaming: false, stretch: null, clarityNodes: null, clarity: false, playing: false, loop: false, offset: 0, startedAt: 0, speed: 1, pitch: 0, volume: 0.8, shortcuts: {} };
+const effectsStorageKey = 'mto-audio-settings:';
+let legacyEffects = {};
+try { legacyEffects = JSON.parse(localStorage.getItem('mto-audio-effects') || '{}') || {}; } catch {}
+const state = { buffer: null, waveformPeaks: null, waveformAnalysis: null, waveformCacheWrite: Promise.resolve(), bookmarks: [], audioPath: '', name: '', context: null, audioSetup: null, loading: false, loadId: 0, restoring: false, source: null, media: $('#audio-stream'), mediaSource: null, streaming: false, stretch: null, clarityNodes: null, clarity: false, noiseReduction: false, equalizer: false, eqValues: { low: 0, mid: 0, high: 0 }, noiseGateFrame: 0, noiseGateSamples: null, playing: false, loop: false, offset: 0, startedAt: 0, speed: 1, pitch: 0, volume: 0.8, shortcuts: {} };
 const waveform = $('#waveform');
 const waveCtx = waveform.getContext('2d');
 const waveformProgress = $('#waveform-progress');
@@ -391,31 +394,151 @@ function drawProgress() {
   if (progressFrame) cancelAnimationFrame(progressFrame);
   progressFrame = state.playing ? requestAnimationFrame(() => { progressFrame = 0; drawProgress(); }) : 0;
 }
+function paintRange(input, centered = false) {
+  const min = Number(input.min) || 0;
+  const max = Number(input.max) || 100;
+  const value = Math.max(min, Math.min(max, Number(input.value) || 0));
+  const ratio = max > min ? (value - min) / (max - min) : 0;
+  const percent = ratio * 100;
+  const center = (min + max) / 2;
+  const centerPercent = 50;
+  input.style.setProperty('--range-fill-start', `${centered && value < center ? percent : centered ? centerPercent : 0}%`);
+  input.style.setProperty('--range-fill-end', `${centered && value < center ? centerPercent : percent}%`);
+  const valueText = input.id === 'speed-slider' ? `${value.toFixed(2)} times` : input.id === 'pitch-slider' ? `${value > 0 ? '+' : ''}${value} semitones` : input.dataset.unit === 'dB' ? `${value > 0 ? '+' : ''}${value} decibels` : `${Math.round(value * 100)} percent`;
+  input.setAttribute('aria-valuetext', valueText);
+}
 function paintDials() {
   $('#speed-value').textContent = `${state.speed.toFixed(2)}×`; $('#pitch-value').textContent = `${state.pitch > 0 ? '+' : ''}${state.pitch} st`;
   $('#speed-slider').value = String(state.speed); $('#pitch-slider').value = String(state.pitch);
+  paintRange($('#speed-slider')); paintRange($('#pitch-slider'), true);
   if (state.stretch) state.stretch.playbackRate.setTargetAtTime(state.speed, state.context.currentTime, 0.02);
   if (state.source) state.source.playbackRate.setTargetAtTime(state.speed, state.context.currentTime, 0.02);
   if (state.streaming && state.media) state.media.playbackRate = state.speed;
   if (state.stretch) state.stretch.pitchSemitones.setTargetAtTime(state.pitch, state.context.currentTime, 0.04);
 }
-function setSpeed(value) { state.speed = Math.round(Math.max(0.5, Math.min(2, value)) * 100) / 100; paintDials(); }
-function setPitch(value) { state.pitch = Math.max(-12, Math.min(12, Math.round(value))); paintDials(); }
+function saveAudioSettings(filePath = state.audioPath) {
+  if (!filePath) return;
+  const snapshot = { speed: state.speed, pitch: state.pitch, volume: state.volume, clarity: state.clarity, noiseReduction: state.noiseReduction, equalizer: state.equalizer, eqValues: state.eqValues };
+  try { localStorage.setItem(`${effectsStorageKey}${filePath}`, JSON.stringify(snapshot)); }
+  catch (error) { console.error('Could not save audio settings:', error); }
+}
+function loadAudioSettings(filePath) {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(`${effectsStorageKey}${filePath}`) || 'null'); } catch {}
+  const source = saved && typeof saved === 'object' ? saved : {
+    noiseReduction: legacyEffects.noiseReduction,
+    equalizer: legacyEffects.equalizer,
+    eqValues: legacyEffects.eqValues
+  };
+  const numeric = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  state.speed = Math.round(Math.max(0.5, Math.min(2, numeric(source.speed, 1))) * 100) / 100;
+  state.pitch = Math.max(-12, Math.min(12, Math.round(numeric(source.pitch, 0))));
+  state.volume = Math.max(0, Math.min(1, numeric(source.volume, 0.8)));
+  state.clarity = source.clarity === true;
+  state.noiseReduction = source.noiseReduction === true;
+  state.equalizer = source.equalizer === true;
+  for (const band of ['low', 'mid', 'high']) state.eqValues[band] = Math.max(-12, Math.min(12, Math.round(numeric(source.eqValues?.[band], 0))));
+  $('#volume').value = String(state.volume);
+  $('#volume-value').textContent = `${Math.round(state.volume * 100)}%`;
+  $('#audio-stream').volume = state.volume;
+  paintRange($('#volume'));
+  paintDials();
+  syncEffectControls();
+  saveAudioSettings(filePath);
+}
+function setSpeed(value) { state.speed = Math.round(Math.max(0.5, Math.min(2, value)) * 100) / 100; paintDials(); saveAudioSettings(); }
+function setPitch(value) { state.pitch = Math.max(-12, Math.min(12, Math.round(value))); paintDials(); saveAudioSettings(); }
+
+function syncEffectControls() {
+  const noiseToggle = $('#noise-reduction-toggle');
+  const eqToggle = $('#equalizer-toggle');
+  const clarityToggle = $('#clarity-toggle');
+  clarityToggle.classList.toggle('on', state.clarity);
+  clarityToggle.setAttribute('aria-pressed', String(state.clarity));
+  $('.clarity-card').classList.toggle('clarity-active', state.clarity);
+  noiseToggle.classList.toggle('on', state.noiseReduction);
+  noiseToggle.setAttribute('aria-pressed', String(state.noiseReduction));
+  $('.noise-reduction-card').classList.toggle('effect-active', state.noiseReduction);
+  eqToggle.classList.toggle('on', state.equalizer);
+  eqToggle.setAttribute('aria-pressed', String(state.equalizer));
+  $('.equalizer-card').classList.toggle('effect-active', state.equalizer);
+  for (const band of ['low', 'mid', 'high']) {
+    const slider = $(`#eq-${band}`);
+    slider.value = String(state.eqValues[band]);
+    slider.disabled = !state.equalizer;
+    $(`#eq-${band}-value`).textContent = `${state.eqValues[band] > 0 ? '+' : ''}${state.eqValues[band]} dB`;
+    paintRange(slider, true);
+  }
+}
+function setNoiseReduction(enabled) {
+  state.noiseReduction = enabled;
+  const nodes = state.clarityNodes;
+  if (nodes && state.context) {
+    const now = state.context.currentTime;
+    nodes.noiseHighpass.frequency.setTargetAtTime(enabled ? 90 : 20, now, 0.08);
+    nodes.noiseLowpass.frequency.setTargetAtTime(enabled ? 10000 : 20000, now, 0.08);
+    if (!enabled) {
+      if (state.noiseGateFrame) cancelAnimationFrame(state.noiseGateFrame);
+      state.noiseGateFrame = 0;
+      nodes.noiseGate.gain.setTargetAtTime(1, now, 0.03);
+    } else if (state.playing) monitorNoiseGate();
+  }
+  saveAudioSettings();
+  syncEffectControls();
+}
+function monitorNoiseGate() {
+  const nodes = state.clarityNodes;
+  if (!state.noiseReduction || !state.playing || !nodes || !state.noiseGateSamples) { state.noiseGateFrame = 0; return; }
+  nodes.noiseAnalyser.getFloatTimeDomainData(state.noiseGateSamples);
+  let energy = 0;
+  for (const sample of state.noiseGateSamples) energy += sample * sample;
+  const rms = Math.sqrt(energy / state.noiseGateSamples.length);
+  const attenuation = Math.max(0.25, Math.min(1, (rms - 0.002) / 0.012));
+  nodes.noiseGate.gain.setTargetAtTime(attenuation, state.context.currentTime, 0.035);
+  state.noiseGateFrame = requestAnimationFrame(monitorNoiseGate);
+}
+function setEqValue(band, value) {
+  const next = Math.max(-12, Math.min(12, Math.round(Number(value))));
+  state.eqValues[band] = next;
+  const filter = state.clarityNodes?.[`eq${band[0].toUpperCase()}${band.slice(1)}`];
+  if (filter && state.context) filter.gain.setTargetAtTime(state.equalizer ? next : 0, state.context.currentTime, 0.04);
+  $(`#eq-${band}-value`).textContent = `${next > 0 ? '+' : ''}${next} dB`;
+  paintRange($(`#eq-${band}`), true);
+  saveAudioSettings();
+}
+function setEqualizer(enabled) {
+  state.equalizer = enabled;
+  if (state.context && state.clarityNodes) for (const band of ['low', 'mid', 'high']) {
+    const filter = state.clarityNodes[`eq${band[0].toUpperCase()}${band.slice(1)}`];
+    filter.gain.setTargetAtTime(enabled ? state.eqValues[band] : 0, state.context.currentTime, 0.04);
+  }
+  saveAudioSettings();
+  syncEffectControls();
+}
 
 function makeClarityChain(input = state.stretch || state.context.createGain()) {
   const highpass = state.context.createBiquadFilter(); highpass.type = 'highpass'; highpass.frequency.value = state.clarity ? 115 : 25;
   const presence = state.context.createBiquadFilter(); presence.type = 'peaking'; presence.frequency.value = 2800; presence.Q.value = 0.8; presence.gain.value = state.clarity ? 4.5 : 0;
   const compressor = state.context.createDynamicsCompressor(); compressor.threshold.value = -24; compressor.knee.value = 18; compressor.ratio.value = state.clarity ? 2.2 : 1; compressor.attack.value = 0.012; compressor.release.value = 0.22;
   const gain = state.context.createGain(); gain.gain.value = state.volume;
-  state.clarityNodes = { highpass, presence, compressor, gain };
-  input.connect(highpass); highpass.connect(presence); presence.connect(compressor); compressor.connect(gain); gain.connect(state.context.destination);
+  const noiseHighpass = state.context.createBiquadFilter(); noiseHighpass.type = 'highpass'; noiseHighpass.frequency.value = state.noiseReduction ? 90 : 20;
+  const noiseLowpass = state.context.createBiquadFilter(); noiseLowpass.type = 'lowpass'; noiseLowpass.frequency.value = state.noiseReduction ? 10000 : 20000;
+  const noiseAnalyser = state.context.createAnalyser(); noiseAnalyser.fftSize = 512; noiseAnalyser.smoothingTimeConstant = 0.82;
+  const noiseGate = state.context.createGain(); noiseGate.gain.value = 1;
+  const eqLow = state.context.createBiquadFilter(); eqLow.type = 'lowshelf'; eqLow.frequency.value = 180; eqLow.gain.value = state.equalizer ? state.eqValues.low : 0;
+  const eqMid = state.context.createBiquadFilter(); eqMid.type = 'peaking'; eqMid.frequency.value = 1100; eqMid.Q.value = 0.85; eqMid.gain.value = state.equalizer ? state.eqValues.mid : 0;
+  const eqHigh = state.context.createBiquadFilter(); eqHigh.type = 'highshelf'; eqHigh.frequency.value = 4200; eqHigh.gain.value = state.equalizer ? state.eqValues.high : 0;
+  state.noiseGateSamples = new Float32Array(noiseAnalyser.fftSize);
+  state.clarityNodes = { noiseHighpass, noiseLowpass, noiseAnalyser, noiseGate, eqLow, eqMid, eqHigh, highpass, presence, compressor, gain };
+  input.connect(noiseHighpass); noiseHighpass.connect(noiseLowpass); noiseLowpass.connect(noiseAnalyser); noiseAnalyser.connect(noiseGate);
+  noiseGate.connect(eqLow); eqLow.connect(eqMid); eqMid.connect(eqHigh); eqHigh.connect(highpass); highpass.connect(presence); presence.connect(compressor); compressor.connect(gain); gain.connect(state.context.destination);
 }
 function updateClarity() {
   state.clarity = !state.clarity; const { highpass, presence, compressor } = state.clarityNodes || {};
   if (highpass) highpass.frequency.setTargetAtTime(state.clarity ? 115 : 25, state.context.currentTime, 0.08);
   if (presence) presence.gain.setTargetAtTime(state.clarity ? 4.5 : 0, state.context.currentTime, 0.08);
   if (compressor) compressor.ratio.setTargetAtTime(state.clarity ? 2.2 : 1, state.context.currentTime, 0.08);
-  $('#clarity-toggle').classList.toggle('on', state.clarity); $('#clarity-status').textContent = state.clarity ? 'Clarity on' : 'Clarity off'; $('.clarity-card').classList.toggle('clarity-active', state.clarity);
+  $('#clarity-toggle').classList.toggle('on', state.clarity); $('#clarity-toggle').setAttribute('aria-pressed', String(state.clarity)); $('.clarity-card').classList.toggle('clarity-active', state.clarity); saveAudioSettings();
 }
 
 async function ensureAudio(resumeContext = true) {
@@ -434,11 +557,13 @@ async function ensureAudio(resumeContext = true) {
   if (resumeContext && state.context.state !== 'running') throw new Error(`Audio context is ${state.context.state}`);
 }
 function stopSource() {
+  if (state.noiseGateFrame) cancelAnimationFrame(state.noiseGateFrame);
+  state.noiseGateFrame = 0;
   if (state.source) { try { state.source.onended = null; state.source.stop(); } catch {} try { state.source.disconnect(); } catch {} }
   if (state.mediaSource) { try { state.mediaSource.disconnect(); } catch {} }
   if (state.stretch) { try { state.stretch.disconnect(); } catch {} }
   for (const node of Object.values(state.clarityNodes || {})) { try { node.disconnect(); } catch {} }
-  state.source = null; state.stretch = null; state.clarityNodes = null;
+  state.source = null; state.stretch = null; state.clarityNodes = null; state.noiseGateSamples = null;
 }
 function createPlaybackGraph() {
   stopSource();
@@ -465,7 +590,7 @@ async function play(allowDuringLoad = false) {
   if (state.playing) return;
   await ensureAudio(); if (state.playing) return;
   if (state.offset >= audioDuration()) state.offset = 0;
-  try { createPlaybackGraph(); state.startedAt = state.context?.currentTime || 0; if (state.streaming) { state.media.currentTime = state.offset; state.media.onended = handleEnded; await state.media.play(); } else state.source.start(0, state.offset); state.playing = true; window.mto.setPlaybackActive(true); }
+  try { createPlaybackGraph(); state.startedAt = state.context?.currentTime || 0; if (state.streaming) { state.media.currentTime = state.offset; state.media.onended = handleEnded; await state.media.play(); } else state.source.start(0, state.offset); state.playing = true; if (state.noiseReduction) monitorNoiseGate(); window.mto.setPlaybackActive(true); }
   catch (error) { state.playing = false; stopSource(); throw error; }
   $('#play-symbol').textContent = '\u2016'; $('#play-btn').classList.add('is-playing'); $('#play-btn').title = 'Pause'; $('#play-btn').setAttribute('aria-label', 'Pause'); $('#track-state-label').textContent = 'NOW PLAYING'; $('#track-state-dot').classList.add('playing'); drawProgress();
 }
@@ -495,6 +620,7 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
   try {
     const file = isRestore ? restoredFile : await window.mto.openAudio();
     if (!file || loadId !== state.loadId) return;
+    saveAudioSettings();
     const totalBytes = Number(file.size);
     if (!Number.isFinite(totalBytes) || totalBytes <= 0) throw new Error('Audio file has no readable data');
     const isLargeFile = totalBytes >= 64 * 1024 * 1024;
@@ -509,7 +635,7 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
     state.bookmarks = [];
     renderBookmarks();
     updateLoadProgress('Preparing audio…', 0);
-    pause(false); state.buffer = null; state.streaming = false; state.media.pause(); state.media.removeAttribute('src'); state.media.load();
+    pause(false); state.audioPath = file.path; loadAudioSettings(file.path); state.buffer = null; state.streaming = false; state.media.pause(); state.media.removeAttribute('src'); state.media.load();
     if (isLargeFile) {
       updateLoadProgress('Opening large audio stream…', null);
       await new Promise((resolve, reject) => { const onReady = () => { cleanup(); resolve(); }; const onError = () => { cleanup(); reject(new Error('Audio stream could not be opened')); }; const cleanup = () => { state.media.removeEventListener('loadedmetadata', onReady); state.media.removeEventListener('error', onError); }; state.media.addEventListener('loadedmetadata', onReady, { once: true }); state.media.addEventListener('error', onError, { once: true }); state.media.crossOrigin = 'anonymous'; state.media.src = file.url; state.media.load(); });
@@ -589,8 +715,7 @@ bookmarkRow.className = 'wave-bookmark-row';
 bookmarkRow.innerHTML = '<button class="bookmark-add" id="bookmark-add" type="button" disabled>+ Bookmark</button><div class="wave-bookmarks" id="wave-bookmarks" aria-label="Audio bookmarks"></div>';
 playerControlPanel.querySelector('.wave-wrap').append(bookmarkRow);
 $('#bookmark-add').addEventListener('click', addBookmark);
-$('.breadcrumb strong').textContent = 'TRANSCRIPTION';
-paintDials(); drawWaveform(); loadSettings(); loadTranscription();
+syncEffectControls(); paintDials(); drawWaveform(); loadSettings(); loadTranscription();
 transcriptionText.addEventListener('input', saveTranscription);
 transcriptionText.addEventListener('keydown', (event) => {
   if (transcriptionLanguage !== 'dv' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.key.length !== 1) return;
@@ -611,8 +736,12 @@ $('#open-track').onclick = () => openAudio(); $('#play-btn').onclick = togglePla
 $('#stop-btn').onclick = () => { pause(); state.offset = 0; savePlaybackPosition(true); drawWaveform(); drawProgress(); };
 $('#jump-back').onclick = () => seekTo(currentTime() - 3); $('#jump-forward').onclick = () => seekTo(currentTime() + 3);
 $('#loop-btn').onclick = () => { state.loop = !state.loop; $('#loop-btn').classList.toggle('selected', state.loop); if (state.source) state.source.loop = state.loop; if (state.media) state.media.loop = state.loop; };
-$('#volume').oninput = (event) => { state.volume = Number(event.target.value); $('#volume-value').textContent = `${Math.round(state.volume * 100)}%`; if (state.media) state.media.volume = state.streaming && state.mediaSource ? 1 : state.volume; if (state.clarityNodes?.gain) state.clarityNodes.gain.gain.setTargetAtTime(state.volume, state.context.currentTime, 0.02); };
+$('#volume').oninput = (event) => { state.volume = Number(event.target.value); $('#volume-value').textContent = `${Math.round(state.volume * 100)}%`; paintRange(event.target); saveAudioSettings(); if (state.media) state.media.volume = state.streaming && state.mediaSource ? 1 : state.volume; if (state.clarityNodes?.gain) state.clarityNodes.gain.gain.setTargetAtTime(state.volume, state.context.currentTime, 0.02); };
+paintRange($('#volume'));
 $('#clarity-toggle').onclick = () => updateClarity();
+$('#noise-reduction-toggle').onclick = () => setNoiseReduction(!state.noiseReduction);
+$('#equalizer-toggle').onclick = () => setEqualizer(!state.equalizer);
+for (const band of ['low', 'mid', 'high']) $(`#eq-${band}`).addEventListener('input', (event) => setEqValue(band, event.target.value));
 document.querySelectorAll('[data-reset]').forEach((button) => button.onclick = () => button.dataset.reset === 'speed' ? setSpeed(1) : setPitch(0));
 function wireWaveSeeking(hit, hover) {
   hit.addEventListener('pointerdown', (event) => { if (!hasAudio()) return; scrubbing = true; scrubWasPlaying = state.playing; if (scrubWasPlaying) pause(); hit.setPointerCapture(event.pointerId); const rect = hit.getBoundingClientRect(); state.offset = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * audioDuration(); if (state.streaming) state.media.currentTime = state.offset; drawWaveform(); drawProgress(); });
@@ -651,5 +780,5 @@ window.mto.onUpdateStatus((update) => showUpdateStatus(update, true));
 window.mto.getUpdateState().then((update) => showUpdateStatus(update)).catch((error) => console.error('Could not load update status:', error));
 window.mto.getVersion().then((version) => { $('#about-version').textContent = version; }).catch((error) => console.error('Could not read application version:', error));
 window.mto.onGlobalAction(doGlobalAction);
-window.addEventListener('beforeunload', () => savePlaybackPosition(true));
+window.addEventListener('beforeunload', () => { saveAudioSettings(); savePlaybackPosition(true); });
 restoreLastAudio();
