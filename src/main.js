@@ -7,6 +7,7 @@ import './polish.css';
 
 const $ = (selector) => document.querySelector(selector);
 const effectsStorageKey = 'mto-audio-settings:';
+const defaultShortcuts = Object.freeze({ playPause: 'Ctrl+Space', seekBackward: 'Alt+Left', seekForward: 'Alt+Right', speedDown: 'Alt+Down', speedUp: 'Alt+Up', pitchDown: 'Ctrl+Alt+Left', pitchUp: 'Ctrl+Alt+Right' });
 let legacyEffects = {};
 try { legacyEffects = JSON.parse(localStorage.getItem('mto-audio-effects') || '{}') || {}; } catch {}
 const state = { buffer: null, waveformPeaks: null, waveformAnalysis: null, waveformCacheWrite: Promise.resolve(), bookmarks: [], audioPath: '', name: '', context: null, audioSetup: null, loading: false, loadId: 0, restoring: false, source: null, media: $('#audio-stream'), mediaSource: null, streaming: false, stretch: null, clarityNodes: null, clarity: false, noiseReduction: false, equalizer: false, eqValues: { low: 0, mid: 0, high: 0 }, noiseGateFrame: 0, noiseGateSamples: null, meterFrame: 0, meterSamples: null, playing: false, loop: false, offset: 0, startedAt: 0, speed: 1, pitch: 0, volume: 0.8, shortcuts: {} };
@@ -446,7 +447,20 @@ function loadAudioSettings(filePath) {
   syncEffectControls();
   saveAudioSettings(filePath);
 }
-function setSpeed(value) { state.speed = Math.round(Math.max(0.5, Math.min(2, value)) * 100) / 100; paintDials(); saveAudioSettings(); }
+function setSpeed(value) {
+  const nextSpeed = Math.round(Math.max(0.5, Math.min(2, value)) * 100) / 100;
+  if (nextSpeed === state.speed) return;
+  // Preserve the current source position before changing the rate. Without
+  // re-anchoring, currentTime() applies the new rate to all elapsed playback
+  // time since Play, which makes the waveform playhead jump on speed changes.
+  if (state.playing && !state.streaming) {
+    state.offset = currentTime();
+    state.startedAt = state.context.currentTime;
+  }
+  state.speed = nextSpeed;
+  paintDials();
+  saveAudioSettings();
+}
 function setPitch(value) { state.pitch = Math.max(-12, Math.min(12, Math.round(value))); paintDials(); saveAudioSettings(); }
 
 function syncEffectControls() {
@@ -615,20 +629,20 @@ function createPlaybackGraph() {
     if (state.stretch) { state.stretch.playbackRate.value = state.speed; state.stretch.pitchSemitones.value = state.pitch; }
   } catch (error) { stopSource(); throw error; }
 }
-function handleEnded() { if (state.playing && !state.loop) { state.playing = false; state.offset = 0; savePlaybackPosition(true); window.mto.setPlaybackActive(false); $('#play-symbol').textContent = '\u25B6'; $('#play-btn').classList.remove('is-playing'); $('#play-btn').title = 'Play'; $('#play-btn').setAttribute('aria-label', 'Play'); $('#track-state-label').textContent = 'TRACK ENDED'; $('#track-state-dot').classList.remove('playing'); drawProgress(); drawWaveform(); } }
+function handleEnded() { if (state.playing && !state.loop) { state.playing = false; state.offset = 0; savePlaybackPosition(true); window.mto?.setPlaybackActive?.(false); $('#play-symbol').textContent = '\u25B6'; $('#play-btn').classList.remove('is-playing'); $('#play-btn').title = 'Play'; $('#play-btn').setAttribute('aria-label', 'Play'); $('#track-state-label').textContent = 'TRACK ENDED'; $('#track-state-dot').classList.remove('playing'); drawProgress(); drawWaveform(); } }
 async function play(allowDuringLoad = false) {
   if (state.loading && !allowDuringLoad) return;
   if (!hasAudio()) { await openAudio(); return; }
   if (state.playing) return;
   await ensureAudio(); if (state.playing) return;
   if (state.offset >= audioDuration()) state.offset = 0;
-  try { createPlaybackGraph(); state.startedAt = state.context?.currentTime || 0; if (state.streaming) { state.media.currentTime = state.offset; state.media.onended = handleEnded; await state.media.play(); } else state.source.start(0, state.offset); state.playing = true; monitorAudioLevel(); if (state.noiseReduction) monitorNoiseGate(); window.mto.setPlaybackActive(true); }
+  try { createPlaybackGraph(); state.startedAt = state.context?.currentTime || 0; if (state.streaming) { state.media.currentTime = state.offset; state.media.onended = handleEnded; await state.media.play(); } else state.source.start(0, state.offset); state.playing = true; monitorAudioLevel(); if (state.noiseReduction) monitorNoiseGate(); window.mto?.setPlaybackActive?.(true); }
   catch (error) { state.playing = false; stopSource(); throw error; }
   $('#play-symbol').textContent = '\u2016'; $('#play-btn').classList.add('is-playing'); $('#play-btn').title = 'Pause'; $('#play-btn').setAttribute('aria-label', 'Pause'); $('#track-state-label').textContent = 'NOW PLAYING'; $('#track-state-dot').classList.add('playing'); drawProgress();
 }
 function pause(savePosition = true) {
   if (!state.playing) return;
-  state.offset = currentTime(); state.playing = false; if (state.streaming) state.media.pause(); stopSource(); if (savePosition) savePlaybackPosition(true); window.mto.setPlaybackActive(false); $('#play-symbol').textContent = '\u25B6'; $('#play-btn').classList.remove('is-playing'); $('#play-btn').title = 'Play'; $('#play-btn').setAttribute('aria-label', 'Play'); $('#track-state-label').textContent = 'PAUSED'; $('#track-state-dot').classList.remove('playing'); drawWaveform(); drawProgress();
+  state.offset = currentTime(); state.playing = false; if (state.streaming) state.media.pause(); stopSource(); if (savePosition) savePlaybackPosition(true); window.mto?.setPlaybackActive?.(false); $('#play-symbol').textContent = '\u25B6'; $('#play-btn').classList.remove('is-playing'); $('#play-btn').title = 'Play'; $('#play-btn').setAttribute('aria-label', 'Play'); $('#track-state-label').textContent = 'PAUSED'; $('#track-state-dot').classList.remove('playing'); drawWaveform(); drawProgress();
 }
 async function togglePlay() { try { if (state.playing) pause(); else await play(); } catch (error) { console.error(error); toast('Playback could not start. Try reopening the audio file.'); } }
 async function seekTo(value) {
@@ -639,6 +653,7 @@ async function seekTo(value) {
 }
 async function openAudio(restoredFile = null, restorePosition = 0) {
   const isRestore = Boolean(restoredFile);
+  if (!isRestore && !window.mto?.openAudio) { toast('Opening audio files requires the desktop app.'); return; }
   if (state.loading) {
     if (!isRestore && state.restoring) {
       state.loadId++;
@@ -681,6 +696,7 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
       const bytes = new Uint8Array(totalBytes); const chunkSize = 4 * 1024 * 1024;
       for (let offset = 0; offset < totalBytes; offset += chunkSize) {
         if (loadId !== state.loadId) return;
+        if (!window.mto?.readAudioChunk) throw new Error('Audio file access requires the desktop app');
         const chunk = await window.mto.readAudioChunk(file.path, offset, Math.min(chunkSize, totalBytes - offset));
         const partSource = chunk instanceof Uint8Array ? chunk : (chunk?.data || chunk);
         const part = partSource instanceof Uint8Array ? partSource : new Uint8Array(partSource);
@@ -702,7 +718,7 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
     if (isLargeFile && !waveformReady) {
       updateLoadProgress('Generating waveform…', 82);
       try {
-        const generated = await window.mto.generateWaveform(file.path, duration);
+        const generated = await window.mto?.generateWaveform?.(file.path, duration);
         if (loadId !== state.loadId) return;
         if (generated?.length === waveformPeakCount) {
           state.waveformPeaks = Float32Array.from(generated);
@@ -732,6 +748,7 @@ async function openAudio(restoredFile = null, restorePosition = 0) {
   finally { if (loadId === state.loadId) { state.loading = false; state.restoring = false; finishLoadProgress(); } }
 }
 async function restoreLastAudio() {
+  if (!window.mto?.restoreAudio) return;
   try {
     const file = await window.mto.restoreAudio();
     if (file) await openAudio(file, file.position);
@@ -744,7 +761,8 @@ function hideSettings() { $('#settings-overlay').classList.remove('visible'); re
 function showAbout() { $('#about-overlay').classList.add('visible'); $('#close-about').focus(); }
 function hideAbout() { $('#about-overlay').classList.remove('visible'); $('#open-about').focus(); }
 async function loadSettings() {
-  state.shortcuts = await window.mto.getShortcuts();
+  try { state.shortcuts = await window.mto?.getShortcuts?.() || { ...defaultShortcuts }; }
+  catch (error) { console.error('Could not load keyboard shortcuts:', error); state.shortcuts = { ...defaultShortcuts }; }
   for (const input of document.querySelectorAll('[data-shortcut]')) input.value = state.shortcuts[input.dataset.shortcut] || '';
 }
 function doGlobalAction(action) { if (action === 'toggle-play') togglePlay(); else if (action === 'seek-backward') seekTo(currentTime() - 3); else if (action === 'seek-forward') seekTo(currentTime() + 3); else if (action === 'speed-down') setSpeed(state.speed - 0.05); else if (action === 'speed-up') setSpeed(state.speed + 0.05); else if (action === 'pitch-down') setPitch(state.pitch - 1); else if (action === 'pitch-up') setPitch(state.pitch + 1); }
@@ -817,16 +835,27 @@ $('#open-settings').onclick = $('#top-settings').onclick = showSettings; $('#clo
 $('#settings-overlay').addEventListener('click', (event) => { if (event.target === $('#settings-overlay')) hideSettings(); });
 $('#open-about').onclick = showAbout; $('#close-about').onclick = hideAbout;
 $('#about-overlay').addEventListener('click', (event) => { if (event.target === $('#about-overlay')) hideAbout(); });
-$('#open-developer-profile').onclick = async () => { try { await window.mto.openDeveloperProfile(); } catch (error) { console.error('Could not open developer profile:', error); toast('Could not open the developer profile.'); } };
+$('#open-developer-profile').onclick = async () => { try { if (!window.mto?.openDeveloperProfile) throw new Error('Desktop app bridge unavailable'); await window.mto.openDeveloperProfile(); } catch (error) { console.error('Could not open developer profile:', error); toast('Could not open the developer profile.'); } };
 document.querySelectorAll('[data-shortcut]').forEach((input) => { input.onclick = () => { recordingShortcut = input; input.classList.add('recording'); input.value = 'Press shortcut…'; $('#shortcut-message').textContent = `Recording ${input.parentElement.firstChild.textContent.trim()}`; }; });
 document.addEventListener('keydown', (event) => {
   if (recordingShortcut) { event.preventDefault(); const combo = keyCombo(event); if (!['Alt', 'Ctrl', 'Shift', 'Super'].includes(combo)) { recordingShortcut.value = combo; recordingShortcut.classList.remove('recording'); state.shortcuts[recordingShortcut.dataset.shortcut] = combo; recordingShortcut = null; $('#shortcut-message').textContent = 'Shortcut captured'; } return; }
+  const editingText = event.target.matches('input, textarea, [contenteditable="true"]');
+  const hasModifier = event.ctrlKey || event.altKey || event.shiftKey || event.metaKey;
+  const configuredShortcut = Object.entries(state.shortcuts).find(([, accelerator]) =>
+    accelerator === keyCombo(event) && (!editingText || hasModifier)
+  );
+  if (configuredShortcut) {
+    const actions = { playPause: 'toggle-play', seekBackward: 'seek-backward', seekForward: 'seek-forward', speedDown: 'speed-down', speedUp: 'speed-up', pitchDown: 'pitch-down', pitchUp: 'pitch-up' };
+    event.preventDefault();
+    doGlobalAction(actions[configuredShortcut[0]]);
+    return;
+  }
   if (event.key === 'Escape') { hideSettings(); hideAbout(); return; }
   if (event.target.matches('input, textarea, [contenteditable="true"]')) return;
   if (event.code === 'Space') { event.preventDefault(); togglePlay(); }
   else if (event.key === 'ArrowLeft') seekTo(currentTime() - 3); else if (event.key === 'ArrowRight') seekTo(currentTime() + 3);
 });
-$('#save-settings').onclick = async () => { try { state.shortcuts = await window.mto.saveShortcuts(state.shortcuts); $('#shortcut-message').textContent = 'Shortcuts saved'; toast('Global shortcuts saved'); } catch { toast('Could not save shortcuts'); } };
+$('#save-settings').onclick = async () => { try { if (!window.mto?.saveShortcuts) throw new Error('Desktop app bridge unavailable'); state.shortcuts = await window.mto.saveShortcuts(state.shortcuts); $('#shortcut-message').textContent = 'Shortcuts saved'; toast('Global shortcuts saved'); } catch { toast('Could not save shortcuts'); } };
 function showUpdateStatus(update, notify = false) {
   const label = $('.status-pill span');
   const aboutStatus = $('#about-update-status');
@@ -852,14 +881,16 @@ function showUpdateStatus(update, notify = false) {
   else label.textContent = state.playing ? 'NOW PLAYING' : hasAudio() ? 'TRACK LOADED' : 'READY TO LISTEN';
 }
 $('#check-for-updates').onclick = async () => {
+  if (!window.mto?.checkForUpdates) { showUpdateStatus({ status: 'unavailable' }); return; }
   $('#about-update-status').textContent = 'Checking for updates…';
   $('#check-for-updates').disabled = true;
   try { showUpdateStatus(await window.mto.checkForUpdates()); }
   catch (error) { console.error('Could not check for updates:', error); showUpdateStatus({ status: 'error' }); }
 };
-window.mto.onUpdateStatus((update) => showUpdateStatus(update, true));
-window.mto.getUpdateState().then((update) => showUpdateStatus(update)).catch((error) => console.error('Could not load update status:', error));
-window.mto.getVersion().then((version) => { $('#about-version').textContent = version; }).catch((error) => console.error('Could not read application version:', error));
-window.mto.onGlobalAction(doGlobalAction);
+window.mto?.onUpdateStatus?.((update) => showUpdateStatus(update, true));
+if (window.mto?.getUpdateState) window.mto.getUpdateState().then((update) => showUpdateStatus(update)).catch((error) => { console.error('Could not load update status:', error); showUpdateStatus({ status: 'error' }); });
+else showUpdateStatus({ status: 'unavailable' });
+window.mto?.getVersion?.().then((version) => { $('#about-version').textContent = version; }).catch((error) => console.error('Could not read application version:', error));
+window.mto?.onGlobalAction?.(doGlobalAction);
 window.addEventListener('beforeunload', () => { saveAudioSettings(); savePlaybackPosition(true); });
 restoreLastAudio();

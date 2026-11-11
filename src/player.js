@@ -72,7 +72,16 @@ function paintDials() {
   if (state.source) state.source.playbackRate.setTargetAtTime(state.speed, state.context.currentTime, 0.02);
   if (state.stretch) state.stretch.pitchSemitones.setTargetAtTime(state.pitch, state.context.currentTime, 0.04);
 }
-function setSpeed(value) { state.speed = Math.round(Math.max(0.5, Math.min(2, value)) * 100) / 100; paintDials(); }
+function setSpeed(value) {
+  const nextSpeed = Math.round(Math.max(0.5, Math.min(2, value)) * 100) / 100;
+  if (nextSpeed === state.speed) return;
+  if (state.playing) {
+    state.offset = currentTime();
+    state.startedAt = state.context.currentTime;
+  }
+  state.speed = nextSpeed;
+  paintDials();
+}
 function setPitch(value) { state.pitch = Math.max(-12, Math.min(12, Math.round(value))); paintDials(); }
 
 function makeClarityChain() {

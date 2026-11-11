@@ -67,8 +67,8 @@
 .brand-mark{width:36px;height:36px;flex:none;gap:0;overflow:hidden;border:0;border-radius:0;background:transparent;box-shadow:none}
 .brand-mark img{display:block;width:100%;height:100%;object-fit:contain}
 .brand-mark span{display:none}
-.brand-zero{position:relative;display:inline-block;color:#c68aff;font:inherit;font-size:1em;line-height:inherit;letter-spacing:inherit;font-variant-numeric:slashed-zero;font-feature-settings:'zero' 1;vertical-align:baseline}
-.brand-zero::after{content:'';position:absolute;left:50%;top:50%;width:1.5px;height:.82em;border-radius:2px;background:currentColor;transform:translate(-50%,-50%) rotate(38deg);pointer-events:none}
+.brand-zero{position:relative;display:inline-block;color:#c68aff;font:inherit;font-size:1em;line-height:inherit;letter-spacing:0;margin-inline:0;font-variant-numeric:normal;font-feature-settings:normal;vertical-align:baseline}
+.brand-zero::after{content:'';position:absolute;left:50%;top:50%;width:1px;height:.88em;border-radius:2px;background:currentColor;transform:translate(-50%,-50%) rotate(38deg);transform-origin:center;pointer-events:none}
 .player-taskbar .play-btn{background:linear-gradient(140deg,#d263ff,#8537f7);color:#190b25;box-shadow:0 5px 18px rgba(170,67,245,.28),inset 0 1px rgba(255,255,255,.42)}
 .player-taskbar .play-btn:hover{box-shadow:0 8px 24px rgba(170,67,245,.4);filter:brightness(1.07)}
 .player-taskbar .wave-current-time{color:#d99eff;text-shadow:0 0 18px rgba(187,67,245,.23)}

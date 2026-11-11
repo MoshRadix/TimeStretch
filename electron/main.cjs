@@ -20,7 +20,7 @@ let installingUpdate = false;
 let updateState = { status: 'idle' };
 let updateChecksStarted = false;
 let updateCheckPromise = null;
-const defaults = { playPause: 'Alt+Space', seekBackward: 'Alt+Left', seekForward: 'Alt+Right', speedDown: 'Alt+Down', speedUp: 'Alt+Up', pitchDown: 'Ctrl+Alt+Left', pitchUp: 'Ctrl+Alt+Right' };
+const defaults = { playPause: 'Ctrl+Space', seekBackward: 'Alt+Left', seekForward: 'Alt+Right', speedDown: 'Alt+Down', speedUp: 'Alt+Up', pitchDown: 'Ctrl+Alt+Left', pitchUp: 'Ctrl+Alt+Right' };
 let shortcuts = { ...defaults };
 
 function audioUrl() {
@@ -49,14 +49,16 @@ async function loadSettings() {
   try {
     const saved = JSON.parse(await fs.readFile(settingsPath(), 'utf8'));
     const previous = saved.shortcuts || {};
+    if (previous.playPause === 'Alt+Space' || previous.playPause === 'Ctrl+Alt+Space') previous.playPause = defaults.playPause;
     if (!previous.seekBackward && previous.pitchDown === 'Alt+Left') previous.pitchDown = defaults.pitchDown;
     if (!previous.seekForward && previous.pitchUp === 'Alt+Right') previous.pitchUp = defaults.pitchUp;
     shortcuts = { ...defaults, ...previous };
   } catch { shortcuts = { ...defaults }; }
 }
-function registerShortcuts(next = shortcuts) {
+function registerShortcuts(next = shortcuts, enabled = true) {
   globalShortcut.unregisterAll();
   shortcuts = { ...defaults, ...next };
+  if (!enabled) return;
   const actions = { playPause: 'toggle-play', seekBackward: 'seek-backward', seekForward: 'seek-forward', speedDown: 'speed-down', speedUp: 'speed-up', pitchDown: 'pitch-down', pitchUp: 'pitch-up' };
   for (const [key, accelerator] of Object.entries(shortcuts)) {
     try { if (accelerator) globalShortcut.register(accelerator, () => mainWindow?.webContents.send('global-action', actions[key])); } catch {}
@@ -111,6 +113,9 @@ function createWindow() {
   mainWindow = new BrowserWindow({ width: 1440, height: 980, minWidth: 1040, minHeight: 720, backgroundColor: '#0c1014', title: 'M0SH TimeStretch', icon: path.join(__dirname, app.isPackaged ? '../web-dist/mto-icon.png' : '../public/mto-icon.png'), autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
     autoplayPolicy: 'no-user-gesture-required' });
+  mainWindow.on('focus', () => registerShortcuts(shortcuts, false));
+  mainWindow.on('blur', () => registerShortcuts(shortcuts, true));
+  mainWindow.on('closed', () => { mainWindow = null; registerShortcuts(shortcuts, true); });
   if (!app.isPackaged) mainWindow.loadURL('http://127.0.0.1:5173');
   else mainWindow.loadFile(path.join(__dirname, '../web-dist/index.html'));
 }
@@ -184,7 +189,7 @@ ipcMain.handle('settings:get', async () => { await loadSettings(); return shortc
 ipcMain.handle('settings:save', async (_event, value) => {
   shortcuts = { ...defaults, ...value };
   await fs.writeFile(settingsPath(), JSON.stringify({ shortcuts }, null, 2), 'utf8');
-  registerShortcuts(shortcuts);
+  registerShortcuts(shortcuts, !mainWindow?.isFocused());
   return shortcuts;
 });
 ipcMain.on('playback:active', (_event, active) => {
@@ -248,7 +253,7 @@ app.whenReady().then(async () => {
       return new Response(null, { status: error.code === 'ENOENT' ? 404 : 500 });
     }
   });
-  await Promise.all([loadSettings(), loadPlaybackState()]); createWindow(); registerShortcuts(); initializeAutoUpdates(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  await Promise.all([loadSettings(), loadPlaybackState()]); createWindow(); registerShortcuts(shortcuts, !mainWindow?.isFocused()); initializeAutoUpdates(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 let waitingForPlaybackSave = false;
 app.on('before-quit', (event) => {

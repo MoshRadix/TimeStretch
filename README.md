@@ -57,6 +57,6 @@ The release script creates and pushes the matching `v<version>` tag. GitHub Acti
 - Enable Voice clarity for a presence filter and gentle compression. Noise reduction applies filtering and reduces low-level background sound.
 - Enable the Equalizer to adjust bass, mids, and treble independently from −12 dB to +12 dB.
 - Audio settings are stored separately for each file on this device and restored when that file is opened again.
-- Open Settings to record global shortcuts. Defaults are `Alt+Space` for play/pause, `Alt+Up/Down` for tempo, `Ctrl+Alt+Left/Right` for pitch, and `Alt+Left/Right` for seeking.
+- Open Settings and click any shortcut to change it. Defaults are `Ctrl+Space` for play/pause, `Alt+Up/Down` for tempo, `Ctrl+Alt+Left/Right` for pitch, and `Alt+Left/Right` for seeking.
 
 Tempo and pitch processing run through the SoundTouchJS AudioWorklet. Waveforms are cached locally and refreshed automatically when the audio file changes.
