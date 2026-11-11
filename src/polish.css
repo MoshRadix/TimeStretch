@@ -1113,6 +1113,8 @@ textarea:focus-visible {
 .enhancement-card.effect-active .enhancement-status { color: #d5b5f5; }
 .enhancement-card .toggle.on { background: #8a5cc0; }
 .enhancement-card .toggle.on span { background: #fff7ff; }
+.clarity-card .toggle.on { background: #8a5cc0; }
+.clarity-card .toggle.on span { background: #fff7ff; }
 
 .eq-bands { display: grid; gap: 4px; margin-top: 8px; }
 .eq-bands label { display: block; min-width: 0; }
@@ -1210,9 +1212,439 @@ textarea:focus-visible {
   box-shadow: 0 0 0 3px #17141f, 0 0 0 5px #e4c5ff;
 }
 
+/* Light theme tokens and component overrides follow below. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-primary: #F8F7F4;
+  --bg-secondary: #EFECE6;
+  --bg-elevated: #FCFBF9;
+  --text-primary: #2B2B2B;
+  --text-secondary: #5C5B57;
+  --text-disabled: #9A9891;
+  --border-subtle: #E2DFD7;
+  --border-focus: #8A9A86;
+  --accent-primary: #4A6B5D;
+  --accent-hover: #3B574B;
+  --accent-soft: #E3EBE7;
+  --status-success: #467A53;
+  --status-warning: #B57B2B;
+  --status-error: #B84A4A;
+}
+
+:root[data-theme="light"] body { color: var(--text-primary); background: var(--bg-primary); }
+:root[data-theme="light"] .sidebar,
+:root[data-theme="light"] .topbar { background: var(--bg-secondary); border-color: var(--border-subtle); }
+:root[data-theme="light"] .main-content { background: transparent; }
+:root[data-theme="light"] .brand b,
+:root[data-theme="light"] .track-info h2,
+:root[data-theme="light"] .page-heading h1,
+:root[data-theme="light"] .transcription-text,
+:root[data-theme="light"] .dial-card h3,
+:root[data-theme="light"] .clarity-card h3,
+:root[data-theme="light"] .enhancement-card h3 { color: var(--text-primary); }
+:root[data-theme="light"] .breadcrumb,
+:root[data-theme="light"] .breadcrumb strong,
+:root[data-theme="light"] .brand small,
+:root[data-theme="light"] .library-label,
+:root[data-theme="light"] .section-label,
+:root[data-theme="light"] .track-info p,
+:root[data-theme="light"] .page-heading p,
+:root[data-theme="light"] .control-label,
+:root[data-theme="light"] .side-slider-labels,
+:root[data-theme="light"] .keyboard-hint,
+:root[data-theme="light"] .transcription-font-label,
+:root[data-theme="light"] .font-size-control,
+:root[data-theme="light"] .transcription-footer,
+:root[data-theme="light"] .recent-meta small { color: var(--text-secondary); }
+:root[data-theme="light"] .sidebar .version,
+:root[data-theme="light"] .text-disabled { color: var(--text-disabled); }
+:root[data-theme="light"] .recent-track,
+:root[data-theme="light"] .player-taskbar > .track-header,
+:root[data-theme="light"] .player-taskbar > .player-control-panel,
+:root[data-theme="light"] .player-card,
+:root[data-theme="light"] .transcription-card,
+:root[data-theme="light"] .dial-card,
+:root[data-theme="light"] .clarity-card,
+:root[data-theme="light"] .enhancement-card,
+:root[data-theme="light"] .settings-modal { background: var(--bg-elevated); border-color: var(--border-subtle); color: var(--text-primary); box-shadow: 0 8px 24px rgba(43, 43, 43, .045); }
+:root[data-theme="light"] .topbar { background: rgba(239,236,230,.92); }
+:root[data-theme="light"] .status-pill { color: var(--text-secondary); background: var(--bg-elevated); border-color: var(--border-subtle); }
+:root[data-theme="light"] .status-pill i.ready,
+:root[data-theme="light"] .track-state-dot.playing,
+:root[data-theme="light"] .playing-bars i { background: var(--status-success); box-shadow: 0 0 8px rgba(70,122,83,.35); }
+:root[data-theme="light"] .nav-item.active,
+:root[data-theme="light"] .language-option.active { color: var(--accent-primary); background: var(--accent-soft); }
+:root[data-theme="light"] .nav-item { color: var(--text-secondary); }
+:root[data-theme="light"] .nav-item:hover,
+:root[data-theme="light"] .settings-link:hover { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="light"] .top-actions > button { color: var(--text-secondary); }
+:root[data-theme="light"] .top-actions > button:hover { background: var(--accent-soft); color: var(--accent-hover); }
+:root[data-theme="light"] .side-divider,
+:root[data-theme="light"] .transcription-toolbar,
+:root[data-theme="light"] .transport { border-color: var(--border-subtle); }
+:root[data-theme="light"] .wave-canvas-wrap { background: #F4F2ED; border-color: var(--border-subtle); }
+:root[data-theme="light"] .wave-empty { background: linear-gradient(90deg, transparent, rgba(248,247,244,.9), transparent); }
+:root[data-theme="light"] .wave-empty b { color: var(--text-secondary); }
+:root[data-theme="light"] .wave-empty small,
+:root[data-theme="light"] .wave-time,
+:root[data-theme="light"] .wave-ticks { color: var(--text-secondary); }
+:root[data-theme="light"] .transcription-text { background: var(--bg-elevated); border-color: var(--border-focus); box-shadow: 0 0 0 2px rgba(138,154,134,.18), 0 0 15px rgba(138,154,134,.07); }
+:root[data-theme="light"] .transcription-text:focus { border-color: var(--border-focus); }
+:root[data-theme="light"] .secondary-btn,
+:root[data-theme="light"] .font-size-control input,
+:root[data-theme="light"] .shortcut-list input { background: var(--bg-elevated); border-color: var(--border-subtle); color: var(--text-primary); }
+:root[data-theme="light"] .secondary-btn:hover { background: var(--accent-soft); border-color: var(--accent-primary); color: var(--accent-hover); }
+:root[data-theme="light"] .play-btn { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; box-shadow: 0 4px 14px rgba(74,107,93,.2); }
+:root[data-theme="light"] .play-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+:root[data-theme="light"] .open-track-btn { background: var(--accent-soft); border-color: #cbd8d1; color: var(--accent-primary); }
+:root[data-theme="light"] .open-track-btn:hover { background: #d8e4de; border-color: var(--accent-primary); }
+:root[data-theme="light"] .player-taskbar #volume,
+:root[data-theme="light"] .side-control-section .side-control-slider { --range-track: #D9D6CD; --range-fill: var(--accent-primary); }
+:root[data-theme="light"] .player-taskbar .transport-btn,
+:root[data-theme="light"] .player-taskbar .small-transport { color: var(--text-secondary); }
+:root[data-theme="light"] .player-taskbar .transport-btn:hover,
+:root[data-theme="light"] .player-taskbar .small-transport:hover { background: var(--accent-soft); border-color: var(--border-focus); color: var(--accent-hover); }
+:root[data-theme="light"] .transcription-text::placeholder { color: var(--text-disabled); }
+:root[data-theme="light"] .about-update-button,
+:root[data-theme="light"] .save-btn { background: var(--accent-primary); color: #fff; }
+:root[data-theme="light"] .about-update-button:hover,
+:root[data-theme="light"] .save-btn:hover { background: var(--accent-hover); }
+:root[data-theme="light"] .about-modal .about-app-card {
+  border-color: var(--border-subtle);
+  background: linear-gradient(145deg, #FCFBF9, #F1F2EC);
+  box-shadow: inset 0 1px rgba(255,255,255,.8);
+}
+:root[data-theme="light"] .about-modal .about-app-card strong,
+:root[data-theme="light"] .about-modal .about-developer strong { color: var(--text-primary); }
+:root[data-theme="light"] .about-modal .about-app-card div > span:not(.brand-zero),
+:root[data-theme="light"] .about-modal .about-update-row > span,
+:root[data-theme="light"] .about-modal .about-developer > span:not(.about-developer-label),
+:root[data-theme="light"] .about-modal .about-signoff { color: var(--text-secondary); }
+:root[data-theme="light"] .about-modal .about-developer-label { color: var(--text-disabled); }
+:root[data-theme="light"] .about-modal .about-divider,
+:root[data-theme="light"] .about-modal .about-signoff { border-color: var(--border-subtle); }
+:root[data-theme="light"] .about-modal .about-signoff strong,
+:root[data-theme="light"] .about-modal .brand-zero { color: var(--accent-primary); }
+:root[data-theme="light"] .about-modal .about-profile-link {
+  border-color: #C6D2CB;
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+}
+:root[data-theme="light"] .about-modal .about-profile-link:hover {
+  border-color: var(--accent-primary);
+  background: #D6E2DB;
+  color: var(--accent-hover);
+}
+
+/* The desktop app is mounted from index.html; these selectors theme that UI. */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 78px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #493958;
+  border-radius: 8px;
+  background: #211a2b;
+  color: #e3c7f6;
+  font: 500 11px 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: background-color .16s, border-color .16s, color .16s;
+}
+.theme-toggle:hover { border-color: #9b6abd; background: #30233d; }
+.theme-toggle-icon { font-size: 16px; line-height: 1; }
+:root[data-theme="light"] .theme-toggle { border-color: var(--border-subtle); background: var(--accent-soft); color: var(--accent-primary); }
+:root[data-theme="light"] .theme-toggle:hover { border-color: var(--accent-primary); background: var(--accent-soft); color: var(--accent-hover); }
+
+:root[data-theme="light"] .workspace { color: var(--text-primary); }
+:root[data-theme="light"] .workspace .page-heading h1 { color: var(--text-primary); }
+:root[data-theme="light"] .workspace .page-heading p { color: var(--text-secondary); }
+:root[data-theme="light"] .player-card,
+:root[data-theme="light"] .transcription-card,
+:root[data-theme="light"] .dial-card,
+:root[data-theme="light"] .clarity-card,
+:root[data-theme="light"] .enhancement-card {
+  background: var(--bg-elevated);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+  box-shadow: 0 8px 24px rgba(43, 43, 43, .045);
+}
+:root[data-theme="light"] .track-info h2,
+:root[data-theme="light"] .dial-card h3,
+:root[data-theme="light"] .enhancement-card h3,
+:root[data-theme="light"] .clarity-card h3 { color: var(--text-primary); }
+:root[data-theme="light"] .track-info p,
+:root[data-theme="light"] .control-label,
+:root[data-theme="light"] .side-slider-labels,
+:root[data-theme="light"] .enhancement-card p,
+:root[data-theme="light"] .keyboard-hint { color: var(--text-secondary); }
+:root[data-theme="light"] .recent-track { background: var(--bg-secondary); }
+:root[data-theme="light"] .recent-meta b { color: var(--text-primary); }
+:root[data-theme="light"] .recent-meta small { color: var(--text-secondary); }
+:root[data-theme="light"] .side-divider,
+:root[data-theme="light"] .transcription-toolbar { border-color: var(--border-subtle); }
+:root[data-theme="light"] .wave-canvas-wrap { background: linear-gradient(180deg, var(--bg-elevated), #F4F2ED); border-color: var(--border-subtle); }
+:root[data-theme="light"] .wave-time,
+:root[data-theme="light"] .wave-ticks,
+:root[data-theme="light"] .transcription-font-label,
+:root[data-theme="light"] .font-size-control,
+:root[data-theme="light"] .transcription-footer { color: var(--text-secondary); }
+:root[data-theme="light"] .wave-empty { background: linear-gradient(90deg, transparent, rgba(248,247,244,.9), transparent); }
+:root[data-theme="light"] .wave-empty b { color: var(--text-secondary); }
+:root[data-theme="light"] .wave-empty small { color: var(--text-secondary); }
+:root[data-theme="light"] .transport { border-top-color: var(--border-subtle); }
+:root[data-theme="light"] .transport-btn,
+:root[data-theme="light"] .small-transport { color: var(--text-secondary); }
+:root[data-theme="light"] .transcription-text { color: var(--text-primary); background: var(--bg-elevated); }
+:root[data-theme="light"] .transcription-actions .secondary-btn,
+:root[data-theme="light"] .font-size-control input { color: var(--text-primary); background: var(--bg-elevated); border-color: var(--border-subtle); }
+:root[data-theme="light"] .sidebar .library-label,
+:root[data-theme="light"] .sidebar .version { color: var(--text-secondary); }
+:root[data-theme="light"] .settings-modal { background: var(--bg-elevated); color: var(--text-primary); border-color: var(--border-subtle); }
+:root[data-theme="light"] .settings-modal .modal-copy,
+:root[data-theme="light"] .settings-modal label { color: var(--text-secondary); }
+:root[data-theme="light"] .settings-modal input { color: var(--text-primary); background: var(--bg-primary); border-color: var(--border-subtle); }
+
+:root[data-theme="light"] .brand-zero,
+:root[data-theme="light"] .control-dot.mint,
+:root[data-theme="light"] .control-dot.violet,
+:root[data-theme="light"] .control-dot.amber,
+:root[data-theme="light"] .eq-bands output,
+:root[data-theme="light"] .pitch-card output,
+:root[data-theme="light"] .page-heading h1 em { color: var(--accent-primary); }
+:root[data-theme="light"] .control-dot.mint,
+:root[data-theme="light"] .control-dot.violet,
+:root[data-theme="light"] .control-dot.amber { background: var(--accent-primary); box-shadow: 0 0 6px rgba(74,107,93,.35); }
+:root[data-theme="light"] .pitch-card .side-control-slider,
+:root[data-theme="light"] .speed-card .side-control-slider,
+:root[data-theme="light"] .player-taskbar #volume,
+:root[data-theme="light"] .side-control-section .eq-bands input[type="range"] { --range-fill: var(--accent-primary); accent-color: var(--accent-primary); }
+:root[data-theme="light"] .side-control-section .pitch-card .side-control-slider::-webkit-slider-thumb,
+:root[data-theme="light"] .side-control-section .pitch-card .side-control-slider::-moz-range-thumb,
+:root[data-theme="light"] .side-control-section .eq-bands input[type="range"]::-webkit-slider-thumb,
+:root[data-theme="light"] .side-control-section .eq-bands input[type="range"]::-moz-range-thumb { background: var(--accent-primary); }
+:root[data-theme="light"] .enhancement-card .toggle.on { background: var(--accent-primary); }
+:root[data-theme="light"] button:focus-visible,
+:root[data-theme="light"] input:focus-visible,
+:root[data-theme="light"] textarea:focus-visible { outline-color: var(--border-focus); }
+:root[data-theme="light"] .player-taskbar #open-track {
+  border-color: #C6D2CB;
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+  box-shadow: 0 2px 8px rgba(74,107,93,.08);
+}
+:root[data-theme="light"] .player-taskbar #open-track:hover {
+  border-color: var(--accent-primary);
+  background: #D6E2DB;
+  color: var(--accent-hover);
+  box-shadow: 0 4px 12px rgba(74,107,93,.12);
+}
+:root[data-theme="light"] .player-taskbar #open-track .upload-icon {
+  background: #D1DED6;
+  color: var(--accent-primary);
+}
+:root[data-theme="light"] .clarity-card .toggle,
+:root[data-theme="light"] .enhancement-card .toggle {
+  background: #D9D6CD;
+}
+:root[data-theme="light"] .clarity-card .toggle span,
+:root[data-theme="light"] .enhancement-card .toggle span { background: #FCFBF9; }
+:root[data-theme="light"] .clarity-card .toggle.on,
+:root[data-theme="light"] .enhancement-card .toggle.on {
+  background: var(--accent-primary);
+}
+:root[data-theme="light"] .clarity-card .toggle.on span,
+:root[data-theme="light"] .enhancement-card .toggle.on span { background: #FCFBF9; }
+:root[data-theme="light"] .side-control-section .enhancement-card.effect-active {
+  border-color: rgba(74,107,93,.4);
+}
+.player-control-panel #loop-btn {
+  border-color: #44404f;
+  background: #211f2b;
+  color: #9690a2;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.player-control-panel #loop-btn.selected {
+  border-color: #bd43f5;
+  background: #bd43f5;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(189,67,245,.18), 0 3px 10px rgba(189,67,245,.22);
+}
+.player-control-panel #loop-btn.selected:hover { background: #a934df; border-color: #a934df; }
+:root[data-theme="light"] .player-control-panel #loop-btn {
+  border-color: #D9D6CD;
+  background: #F4F2ED;
+  color: #6E6B64;
+}
+:root[data-theme="light"] .player-control-panel #loop-btn:hover {
+  border-color: #AAB9A7;
+  background: #E8EEE9;
+  color: var(--accent-hover);
+}
+:root[data-theme="light"] .player-control-panel #loop-btn.selected {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(74,107,93,.18), 0 3px 10px rgba(74,107,93,.2);
+}
+:root[data-theme="light"] .player-control-panel #loop-btn.selected:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+:root[data-theme="light"] .side-control-section .speed-card .dial-card-value output {
+  color: var(--accent-primary);
+}
+:root[data-theme="light"] .side-control-section .reset-btn {
+  border-color: #C6D2CB;
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+}
+:root[data-theme="light"] .side-control-section .reset-btn:hover {
+  border-color: var(--accent-primary);
+  background: #D6E2DB;
+  color: var(--accent-hover);
+}
+:root[data-theme="light"] .player-control-panel .wave-playhead {
+  background: var(--accent-primary);
+  box-shadow: 0 0 12px rgba(74,107,93,.62);
+}
+:root[data-theme="light"] .player-control-panel .wave-playhead span {
+  background: #3B574B;
+  box-shadow: 0 0 10px rgba(74,107,93,.7);
+}
+:root[data-theme="light"] .player-control-panel .wave-current-time {
+  color: var(--accent-primary);
+  text-shadow: 0 0 18px rgba(74,107,93,.16);
+}
+:root[data-theme="light"] .topbar-copy h1 { color: var(--text-primary); }
+:root[data-theme="light"] .topbar-copy h1 em { color: var(--accent-primary); }
+:root[data-theme="light"] .top-actions .avatar {
+  background: var(--accent-soft);
+  border-color: #C6D2CB;
+  color: var(--accent-primary);
+}
+:root[data-theme="light"] .bookmark-add {
+  border-color: #9DAF9F;
+  background: #E3EBE7;
+  color: #3B574B;
+  font-weight: 600;
+}
+:root[data-theme="light"] .bookmark-add:hover:not(:disabled) {
+  border-color: #4A6B5D;
+  background: #D4E1D9;
+  color: #2F493D;
+}
+:root[data-theme="light"] .bookmark-add:disabled {
+  border-color: #E2DFD7;
+  background: #F1EFEA;
+  color: #9A9891;
+  opacity: 1;
+}
+:root[data-theme="light"] .wave-bookmark-item {
+  border-color: #A8B8AB;
+  background: #E8EFEA;
+}
+:root[data-theme="light"] .wave-bookmark-jump {
+  color: #344F42;
+  font-weight: 600;
+}
+:root[data-theme="light"] .wave-bookmark-jump:hover {
+  background: #D1DED6;
+  color: #2F493D;
+}
+:root[data-theme="light"] .wave-bookmark-delete { color: #72565A; }
+:root[data-theme="light"] .wave-bookmark-delete:hover { background: #E7D9D6; color: #8C3F3F; }
+:root[data-theme="light"] .wave-bookmark-marker {
+  width: 3px;
+  background: #3B574B;
+  box-shadow: 0 0 0 1px #FCFBF9, 0 0 7px rgba(59,87,75,.62);
+}
+:root[data-theme="light"] .wave-bookmark-marker:before {
+  background: #4A6B5D;
+  border: 1px solid #FCFBF9;
+  box-shadow: 0 0 0 1px #3B574B, 0 1px 3px rgba(43,43,43,.25);
+}
+:root[data-theme="light"] .player-taskbar #open-track b { color: var(--accent-primary); }
+:root[data-theme="light"] .player-taskbar #open-track small { color: var(--text-secondary); }
+:root[data-theme="light"] .speed-card .side-control-slider,
+:root[data-theme="light"] .pitch-card .side-control-slider,
+:root[data-theme="light"] .player-taskbar #volume,
+:root[data-theme="light"] .side-control-section .eq-bands input[type="range"] {
+  --range-track: #D9D6CD;
+  --range-fill: var(--accent-primary);
+  accent-color: var(--accent-primary);
+}
+:root[data-theme="light"] .side-control-section .side-control-slider::-webkit-slider-thumb,
+:root[data-theme="light"] .player-taskbar #volume::-webkit-slider-thumb,
+:root[data-theme="light"] .side-control-section .eq-bands input[type="range"]::-webkit-slider-thumb {
+  border-color: #FCFBF9;
+  background: var(--accent-primary);
+  box-shadow: 0 1px 4px rgba(43,43,43,.2), 0 0 0 4px rgba(74,107,93,.15);
+}
+:root[data-theme="light"] .side-control-section .side-control-slider::-moz-range-thumb,
+:root[data-theme="light"] .player-taskbar #volume::-moz-range-thumb,
+:root[data-theme="light"] .side-control-section .eq-bands input[type="range"]::-moz-range-thumb {
+  border-color: #FCFBF9;
+  background: var(--accent-primary);
+  box-shadow: 0 1px 4px rgba(43,43,43,.2), 0 0 0 4px rgba(74,107,93,.15);
+}
+:root[data-theme="light"] .side-control-section .side-control-slider:focus-visible::-webkit-slider-thumb,
+:root[data-theme="light"] .player-taskbar #volume:focus-visible::-webkit-slider-thumb,
+:root[data-theme="light"] .side-control-section .side-control-slider:focus-visible::-moz-range-thumb,
+:root[data-theme="light"] .player-taskbar #volume:focus-visible::-moz-range-thumb,
+:root[data-theme="light"] .side-control-section .eq-bands input[type="range"]:focus-visible::-webkit-slider-thumb,
+:root[data-theme="light"] .side-control-section .eq-bands input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px #FCFBF9, 0 0 0 5px var(--border-focus);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .side-control-section .side-control-slider::-webkit-slider-thumb,
   .player-taskbar #volume::-webkit-slider-thumb,
   .side-control-section .side-control-slider::-moz-range-thumb,
   .player-taskbar #volume::-moz-range-thumb { transition: none; }
+}
+
+/* Keep transcription actions on the warm light-theme palette. */
+:root[data-theme="light"] .transcription-actions .secondary-btn {
+  background: var(--bg-elevated);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+:root[data-theme="light"] .transcription-actions .secondary-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-primary);
+  color: var(--accent-hover);
+}
+:root[data-theme="light"] .transcription-actions .secondary-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Theme the live transport panel rather than relying on generic button styles. */
+:root[data-theme="light"] .player-control-panel .small-transport,
+:root[data-theme="light"] .player-control-panel #stop-btn {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+:root[data-theme="light"] .player-control-panel .small-transport:hover,
+:root[data-theme="light"] .player-control-panel #stop-btn:hover {
+  border-color: var(--border-focus);
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+:root[data-theme="light"] .player-control-panel .small-transport small {
+  color: var(--text-secondary);
+}
+:root[data-theme="light"] .player-control-panel .right-side,
+:root[data-theme="light"] .player-control-panel .volume-icon,
+:root[data-theme="light"] .player-control-panel #volume-value {
+  color: var(--text-secondary);
+}
+:root[data-theme="light"] .player-control-panel .small-transport:focus-visible,
+:root[data-theme="light"] .player-control-panel #stop-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }

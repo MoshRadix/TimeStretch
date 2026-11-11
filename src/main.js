@@ -6,10 +6,32 @@ import './style.css';
 import './polish.css';
 
 const $ = (selector) => document.querySelector(selector);
+function readStoredValue(key, fallback = null) {
+  try { return localStorage.getItem(key) ?? fallback; }
+  catch { return fallback; }
+}
+function writeStoredValue(key, value) {
+  try { localStorage.setItem(key, value); return true; }
+  catch { return false; }
+}
+const themeToggle = $('#theme-toggle');
+function applyTheme(theme) {
+  const isLight = theme === 'light';
+  document.documentElement.dataset.theme = isLight ? 'light' : 'dark';
+  if (themeToggle) {
+    themeToggle.querySelector('.theme-toggle-icon').textContent = isLight ? '☾' : '☼';
+    themeToggle.querySelector('.theme-toggle-label').textContent = isLight ? 'Dark' : 'Light';
+    themeToggle.setAttribute('aria-label', `Switch to ${isLight ? 'dark' : 'light'} theme`);
+    themeToggle.title = `Switch to ${isLight ? 'dark' : 'light'} theme`;
+  }
+  writeStoredValue('m0sh-theme', isLight ? 'light' : 'dark');
+}
+applyTheme(readStoredValue('m0sh-theme', 'light'));
+themeToggle?.addEventListener('click', () => { applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); drawWaveform(); });
 const effectsStorageKey = 'mto-audio-settings:';
 const defaultShortcuts = Object.freeze({ playPause: 'Ctrl+Space', seekBackward: 'Alt+Left', seekForward: 'Alt+Right', speedDown: 'Alt+Down', speedUp: 'Alt+Up', pitchDown: 'Ctrl+Alt+Left', pitchUp: 'Ctrl+Alt+Right' });
 let legacyEffects = {};
-try { legacyEffects = JSON.parse(localStorage.getItem('mto-audio-effects') || '{}') || {}; } catch {}
+try { legacyEffects = JSON.parse(readStoredValue('mto-audio-effects', '{}')) || {}; } catch {}
 const state = { buffer: null, waveformPeaks: null, waveformAnalysis: null, waveformCacheWrite: Promise.resolve(), bookmarks: [], audioPath: '', name: '', context: null, audioSetup: null, loading: false, loadId: 0, restoring: false, source: null, media: $('#audio-stream'), mediaSource: null, streaming: false, stretch: null, clarityNodes: null, clarity: false, noiseReduction: false, equalizer: false, eqValues: { low: 0, mid: 0, high: 0 }, noiseGateFrame: 0, noiseGateSamples: null, meterFrame: 0, meterSamples: null, playing: false, loop: false, offset: 0, startedAt: 0, speed: 1, pitch: 0, volume: 0.8, shortcuts: {} };
 const waveform = $('#waveform');
 const waveCtx = waveform.getContext('2d');
@@ -47,18 +69,18 @@ function setTranscriptionLanguage(language, save = true) {
   $('#language-en').classList.toggle('active', !isDhivehi);
   $('#language-dv').setAttribute('aria-pressed', String(isDhivehi));
   $('#language-en').setAttribute('aria-pressed', String(!isDhivehi));
-  if (save) localStorage.setItem('mto-transcription-language', transcriptionLanguage);
+  if (save) writeStoredValue('mto-transcription-language', transcriptionLanguage);
 }
 function transcriptionStorageKey(filePath) { return `mto-transcription:${filePath}`; }
 function loadTranscription(filePath = state.audioPath) {
   const savedText = filePath
-    ? localStorage.getItem(transcriptionStorageKey(filePath))
-    : localStorage.getItem('mto-transcription');
+    ? readStoredValue(transcriptionStorageKey(filePath), '')
+    : readStoredValue('mto-transcription', '');
   transcriptionText.value = savedText || '';
-  const size = Number(localStorage.getItem('mto-transcription-font-size')) || 13;
+  const size = Number(readStoredValue('mto-transcription-font-size')) || 13;
   transcriptionFontSize.value = String(Math.max(8, Math.min(72, size)));
   transcriptionText.style.fontSize = `${transcriptionFontSize.value}px`;
-  setTranscriptionLanguage(localStorage.getItem('mto-transcription-language') || 'dv', false);
+  setTranscriptionLanguage(readStoredValue('mto-transcription-language', 'dv'), false);
 }
 function saveTranscription() {
   try {
@@ -198,11 +220,22 @@ function drawWaveformOn(canvas, ctx, empty, barColor) {
   empty.classList.add('hidden');
   const barCount = Math.max(1, Math.min(peaks?.length || 1, Math.floor(width / 3.5)));
   const mid = Math.floor(height / 2);
-  ctx.fillStyle = 'rgba(190, 160, 216, 0.12)';
+  const lightTheme = document.documentElement.dataset.theme === 'light';
+  ctx.fillStyle = lightTheme ? 'rgba(74, 107, 93, 0.15)' : 'rgba(190, 160, 216, 0.12)';
   ctx.fillRect(0, mid, width, 1);
   if (!peaks) return;
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  if (barColor === '#d19aff') {
+  if (lightTheme) {
+    if (barColor === '#d19aff') {
+      gradient.addColorStop(0, '#4A6B5D');
+      gradient.addColorStop(0.5, '#719181');
+      gradient.addColorStop(1, '#3B574B');
+    } else {
+      gradient.addColorStop(0, '#8A9A86');
+      gradient.addColorStop(0.5, '#A8B6A3');
+      gradient.addColorStop(1, '#71826D');
+    }
+  } else if (barColor === '#d19aff') {
     gradient.addColorStop(0, '#bd82e8');
     gradient.addColorStop(0.5, '#e1b8ff');
     gradient.addColorStop(1, '#a969d1');
@@ -837,15 +870,38 @@ transcriptionText.addEventListener('keydown', (event) => {
 });
 $('#language-dv').addEventListener('click', () => setTranscriptionLanguage('dv'));
 $('#language-en').addEventListener('click', () => setTranscriptionLanguage('en'));
-transcriptionFontSize.addEventListener('input', () => { const size = Math.max(8, Math.min(72, Number(transcriptionFontSize.value) || 13)); transcriptionText.style.fontSize = `${size}px`; localStorage.setItem('mto-transcription-font-size', String(size)); });
+transcriptionFontSize.addEventListener('input', () => { const size = Math.max(8, Math.min(72, Number(transcriptionFontSize.value) || 13)); transcriptionText.style.fontSize = `${size}px`; writeStoredValue('mto-transcription-font-size', String(size)); });
 $('#speed-slider').addEventListener('input', (event) => setSpeed(Number(event.target.value)));
 $('#pitch-slider').addEventListener('input', (event) => setPitch(Number(event.target.value)));
 $('#download-transcription').onclick = () => { const blob = new Blob([transcriptionText.value], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'transcription.txt'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+$('#copy-transcription').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(transcriptionText.value);
+    toast('Transcription copied');
+  } catch (error) {
+    console.error('Could not copy transcription:', error);
+    toast('Could not copy transcription');
+  } finally {
+    focusTranscriptionEditor();
+  }
+};
 $('#clear-transcription').onclick = () => { if (!transcriptionText.value || window.confirm('Clear the saved transcription?')) { transcriptionText.value = ''; saveTranscription(); transcriptionText.focus(); } };
 $('#open-track').onclick = () => openAudio(); $('#play-btn').onclick = togglePlay;
 $('#stop-btn').onclick = () => { pause(); state.offset = 0; savePlaybackPosition(true); drawWaveform(); drawProgress(); };
 $('#jump-back').onclick = () => seekTo(currentTime() - 3); $('#jump-forward').onclick = () => seekTo(currentTime() + 3);
-$('#loop-btn').onclick = () => { state.loop = !state.loop; $('#loop-btn').classList.toggle('selected', state.loop); if (state.source) state.source.loop = state.loop; if (state.media) state.media.loop = state.loop; };
+$('#loop-btn').onclick = () => {
+  state.loop = !state.loop;
+  const button = $('#loop-btn');
+  button.classList.toggle('selected', state.loop);
+  button.setAttribute('aria-pressed', String(state.loop));
+  button.setAttribute('aria-label', `Loop track ${state.loop ? 'on' : 'off'}`);
+  button.title = `Loop track ${state.loop ? 'on' : 'off'}`;
+  if (state.source) state.source.loop = state.loop;
+  if (state.media) state.media.loop = state.loop;
+};
+$('#loop-btn').setAttribute('aria-pressed', 'false');
+$('#loop-btn').setAttribute('aria-label', 'Loop track off');
+$('#loop-btn').title = 'Loop track off';
 $('#volume').oninput = (event) => { state.volume = Number(event.target.value); $('#volume-value').textContent = `${Math.round(state.volume * 100)}%`; paintRange(event.target); saveAudioSettings(); if (state.media) state.media.volume = state.streaming && state.mediaSource ? 1 : state.volume; if (state.clarityNodes?.gain) state.clarityNodes.gain.gain.setTargetAtTime(state.volume, state.context.currentTime, 0.02); };
 paintRange($('#volume'));
 $('#clarity-toggle').onclick = () => updateClarity();
